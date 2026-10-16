@@ -42,6 +42,7 @@ import 'package:PiliPlus/utils/utils.dart';
 import 'package:PiliPlus/utils/wbi_sign.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show compute;
+import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:protobuf/protobuf.dart';
 
 /// view层根据 status 判断渲染逻辑
@@ -779,6 +780,9 @@ abstract final class VideoHttp {
   }
 
   // 自定义：网页端点击上报，真正使播放量 +1（需 WBI 签名）
+  // 对齐 B 站官方播放器 core.js 的 HttpStatsClick:
+  //   params(走 WBI 签名) = {w_aid, w_part, w_ftime, w_stime, w_type} + web_location
+  //   data(表单)          = {mid, aid, cid, part, lv, ftime, stime, type, sub_type, ...}
   // https://api.bilibili.com/x/click-interface/click/web/h5
   static Future<void> clickWeb({
     required Object aid,
@@ -789,7 +793,8 @@ abstract final class VideoHttp {
     int subType = 0,
   }) {
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final ftime = now - 90;
+    // ftime 为本次播放开始时间, stime 为上报时间; 官方取 firstPlay, 这里取当前时间
+    final ftime = now;
     return WbiSign.makSign(<String, Object>{
       'w_aid': aid,
       'w_part': part,
@@ -798,27 +803,55 @@ abstract final class VideoHttp {
       'w_type': type,
       'web_location': 1315873,
     }).then(
-      (params) => Request().post(
-        Api.clickWeb,
-        queryParameters: params,
-        data: {
-          'aid': aid,
-          'cid': cid,
-          if (bvid != null) 'bvid': bvid,
-          'part': part,
-          'lv': 0,
-          'ftime': ftime,
-          'stime': now,
-          'type': type,
-          'sub_type': subType,
-          'refer_url': '',
-          'outer': 0,
-          'spmid': '333.788.0.0',
-          'from_spmid': '',
-          'csrf': Accounts.main.csrf,
-        },
-        options: Options(contentType: Headers.formUrlEncodedContentType),
-      ),
+      (params) => Request()
+          .post(
+            Api.clickWeb,
+            queryParameters: params,
+            data: {
+              'mid': Accounts.main.mid,
+              'aid': aid,
+              'cid': cid,
+              if (bvid != null) 'bvid': bvid,
+              'part': part,
+              'lv': 0,
+              'ftime': ftime,
+              'stime': now,
+              'type': type,
+              'sub_type': subType,
+              'refer_url': '',
+              'bsource': '',
+              'outer': 0,
+              'spmid': '333.788.0.0',
+              'from_spmid': '',
+              'mobi_app': 'web',
+              'device': 'web',
+              'platform': 'web',
+              'csrf': Accounts.main.csrf,
+            },
+            options: Options(
+              contentType: Headers.formUrlEncodedContentType,
+              headers: {
+                'origin': 'https://www.bilibili.com',
+                'referer': bvid != null
+                    ? 'https://www.bilibili.com/video/$bvid'
+                    : 'https://www.bilibili.com/',
+                'user-agent': BrowserUa.pc,
+              },
+            ),
+          )
+          .then((res) {
+            final data = res.data;
+            final code = data is Map ? data['code'] : null;
+            if (code != 0) {
+              final msg = data is Map
+                  ? (data['message'] ?? data['msg'] ?? '')
+                  : '';
+              SmartDialog.showToast('播放上报失败[$code] $msg');
+            } else {
+              SmartDialog.showToast('播放已上报');
+            }
+            return res;
+          }),
     );
   }
 
