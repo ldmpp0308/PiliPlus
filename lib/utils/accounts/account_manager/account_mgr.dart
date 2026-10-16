@@ -220,14 +220,16 @@ class AccountManager extends Interceptor {
         path.contains('biliimg.com');
   }
 
-  static Account _findAccount(String path) => ApiType.loginApi.contains(path)
-      ? AnonymousAccount()
-      : Accounts.get(
-          AccountType.values.firstWhere(
-            (i) => ApiType.apiTypeSet[i]?.contains(path) == true,
-            orElse: () => AccountType.main,
-          ),
-        );
+  static Account _findAccount(String path) {
+    if (ApiType.loginApi.contains(path)) return AnonymousAccount();
+    final type = AccountType.values.firstWhere(
+      (i) => ApiType.apiTypeSet[i]?.contains(path) == true,
+      orElse: () => AccountType.main,
+    );
+    // 自定义：未单独设置「记录观看」账号时回退到主账号，保证登录后能上报播放
+    if (type == AccountType.heartbeat) return Accounts.history;
+    return Accounts.get(type);
+  }
 
   static Account _bindRequestAccount(RequestOptions options) {
     assert(options.extra['account'] is Account?);

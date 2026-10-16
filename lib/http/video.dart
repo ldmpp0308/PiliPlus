@@ -725,7 +725,7 @@ abstract final class VideoHttp {
   static Future<void> roomEntryAction({required Object roomId}) {
     return Request().post(
       Api.roomEntryAction,
-      queryParameters: {'csrf': Accounts.heartbeat.csrf},
+      queryParameters: {'csrf': Accounts.history.csrf},
       data: {'room_id': roomId, 'platform': 'pc'},
     );
   }
@@ -736,7 +736,7 @@ abstract final class VideoHttp {
   }) {
     return Request().post(
       Api.historyReport,
-      data: {'aid': aid, 'type': type, 'csrf': Accounts.heartbeat.csrf},
+      data: {'aid': aid, 'type': type, 'csrf': Accounts.history.csrf},
       options: Options(contentType: Headers.formUrlEncodedContentType),
     );
   }
@@ -751,6 +751,9 @@ abstract final class VideoHttp {
     Object? seasonId,
     Object? subType,
     required VideoType videoType,
+    int? playType,
+    int? realtime,
+    int? startTs,
   }) {
     final isPugv = videoType == VideoType.pugv;
     return Request().post(
@@ -763,7 +766,13 @@ abstract final class VideoHttp {
         'type': videoType.type,
         'sub_type': ?subType,
         'played_time': progress,
-        'csrf': Accounts.heartbeat.csrf,
+        // 自定义：补齐网页端心跳字段，便于服务端正确统计播放量
+        'play_type': ?playType,
+        'realtime': ?realtime,
+        'start_ts': ?startTs,
+        'dt': 2,
+        'mid': Accounts.history.mid,
+        'csrf': Accounts.history.csrf,
       },
       options: Options(contentType: Headers.formUrlEncodedContentType),
     );
@@ -780,7 +789,7 @@ abstract final class VideoHttp {
         'desc': desc,
         'oid': oid,
         'upper_mid': upperMid,
-        'csrf': Accounts.heartbeat.csrf,
+        'csrf': Accounts.history.csrf,
       },
       options: Options(contentType: Headers.formUrlEncodedContentType),
     );

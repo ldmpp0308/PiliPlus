@@ -147,6 +147,8 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   int? _pgcType;
   VideoType _videoType = VideoType.ugc;
   int _heartDuration = 0;
+  int? _startTs;
+  bool _playReported = false;
   int? width;
   int? height;
 
@@ -658,7 +660,8 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     }
 
     // 自定义：只要登录就强制上报，不受「暂停观看记录」开关影响
-    if (!Accounts.heartbeat.isLogin) {
+    // 未单独设置「记录观看」账号时回退到主账号
+    if (!Accounts.history.isLogin) {
       enableHeart = false;
     }
 
@@ -892,6 +895,8 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
   ) async {
     isBuffering.value = false;
     _heartDuration = 0;
+    _startTs = null;
+    _playReported = false;
     danmakuController?.clear();
 
     var player = _videoPlayerController;
@@ -1582,6 +1587,13 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     }
 
     Future<void> send() {
+      // 自定义：补齐网页端心跳所需字段（play_type/start_ts/realtime）
+      final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      _startTs ??= now - (progress > 0 ? progress : 0);
+      final playType = type == HeartBeatType.completed
+          ? 2
+          : (_playReported ? 0 : 1);
+      _playReported = true;
       return VideoHttp.heartBeat(
         aid: aid ?? _aid,
         bvid: bvid ?? _bvid,
@@ -1591,6 +1603,9 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
         seasonId: seasonId ?? _seasonId,
         subType: pgcType ?? _pgcType,
         videoType: videoType ?? _videoType,
+        playType: playType,
+        realtime: progress > 0 ? progress : 0,
+        startTs: _startTs,
       );
     }
 
