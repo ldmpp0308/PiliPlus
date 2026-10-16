@@ -398,7 +398,7 @@ abstract final class Pref {
       _setting.get(SettingBoxKey.showBangumiReply, defaultValue: true);
 
   static bool get alwaysExpandIntroPanel =>
-      _setting.get(SettingBoxKey.alwaysExpandIntroPanel, defaultValue: false);
+      _setting.get(SettingBoxKey.alwaysExpandIntroPanel, defaultValue: true);
 
   static bool get expandIntroPanelH =>
       _setting.get(SettingBoxKey.expandIntroPanelH, defaultValue: false);

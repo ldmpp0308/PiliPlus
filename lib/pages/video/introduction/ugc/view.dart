@@ -273,6 +273,10 @@ class _UgcIntroPanelState extends State<UgcIntroPanel> {
     const SizedBox(height: 8, width: .infinity),
     GestureDetector(
       onTap: () => Utils.copyText('${videoDetail.bvid}'),
+      onLongPress: () {
+        Feedback.forLongPress(context);
+        Utils.copyText('${videoDetail.bvid}');
+      },
       child: Text(
         videoDetail.bvid ?? '',
         style: TextStyle(fontSize: 14, color: colorScheme.secondary),
