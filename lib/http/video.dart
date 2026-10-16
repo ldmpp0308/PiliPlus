@@ -778,6 +778,50 @@ abstract final class VideoHttp {
     );
   }
 
+  // 自定义：网页端点击上报，真正使播放量 +1（需 WBI 签名）
+  // https://api.bilibili.com/x/click-interface/click/web/h5
+  static Future<void> clickWeb({
+    required Object aid,
+    required Object cid,
+    String? bvid,
+    int part = 1,
+    int type = 3,
+    int subType = 0,
+  }) {
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final ftime = now - 90;
+    return WbiSign.makSign(<String, Object>{
+      'w_aid': aid,
+      'w_part': part,
+      'w_ftime': ftime,
+      'w_stime': now,
+      'w_type': type,
+      'web_location': 1315873,
+    }).then(
+      (params) => Request().post(
+        Api.clickWeb,
+        queryParameters: params,
+        data: {
+          'aid': aid,
+          'cid': cid,
+          if (bvid != null) 'bvid': bvid,
+          'part': part,
+          'lv': 0,
+          'ftime': ftime,
+          'stime': now,
+          'type': type,
+          'sub_type': subType,
+          'refer_url': '',
+          'outer': 0,
+          'spmid': '333.788.0.0',
+          'from_spmid': '',
+          'csrf': Accounts.main.csrf,
+        },
+        options: Options(contentType: Headers.formUrlEncodedContentType),
+      ),
+    );
+  }
+
   static Future<void> medialistHistory({
     required int desc,
     required Object oid,

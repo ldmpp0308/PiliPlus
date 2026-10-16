@@ -274,6 +274,9 @@ abstract final class Api {
   // https://github.com/SocialSisterYi/bilibili-API-collect/blob/master/docs/video/report.md
   static const String heartBeat = '/x/click-interface/web/heartbeat';
 
+  // 自定义：真正让播放量 +1 的网页端上报接口（需 WBI 签名）
+  static const String clickWeb = '/x/click-interface/click/web/h5';
+
   static const String historyReport = '/x/v2/history/report';
 
   static const String roomEntryAction =

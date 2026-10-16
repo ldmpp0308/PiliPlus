@@ -1,4 +1,4 @@
-import 'dart:async' show StreamSubscription, Timer;
+import 'dart:async' show StreamSubscription, Timer, unawaited;
 import 'dart:convert' show ascii, utf8;
 import 'dart:io' show Platform;
 import 'dart:math' show max, min;
@@ -1593,6 +1593,21 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
       final playType = type == HeartBeatType.completed
           ? 2
           : (_playReported ? 0 : 1);
+      // 自定义：首次上报时额外调用网页端 click 接口，真正使播放量 +1
+      if (!_playReported) {
+        final clickAid = aid ?? _aid;
+        final clickCid = cid ?? this.cid;
+        if (clickAid != null && clickCid != null) {
+          unawaited(
+            VideoHttp.clickWeb(
+              aid: clickAid,
+              cid: clickCid,
+              bvid: bvid ?? _bvid,
+              type: (videoType ?? _videoType).type,
+            ),
+          );
+        }
+      }
       _playReported = true;
       return VideoHttp.heartBeat(
         aid: aid ?? _aid,
