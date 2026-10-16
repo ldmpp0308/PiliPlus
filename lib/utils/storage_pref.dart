@@ -111,24 +111,36 @@ abstract final class Pref {
   );
   //   [0.5, 100.0, 2.2 * math.sqrt(50)], // [mass, stiffness, damping]
 
-  static List<double> get speedList => List<double>.from(
-    _video.get(
-      VideoBoxKey.speedsList,
-      defaultValue: const [
-        0.5,
-        0.75,
-        1.0,
-        1.25,
-        1.5,
-        1.75,
-        2.0,
-        3.0,
-        4.0,
-        5.0,
-        6.0,
-      ],
-    ),
-  );
+  /// 始终可选的倍速（兼容旧持久化数据，确保 3/4/5/6 倍速出现在选项中）
+  static const List<double> _extraSpeeds = [3.0, 4.0, 5.0, 6.0];
+
+  static List<double> get speedList {
+    final list = List<double>.from(
+      _video.get(
+        VideoBoxKey.speedsList,
+        defaultValue: const [
+          0.5,
+          0.75,
+          1.0,
+          1.25,
+          1.5,
+          1.75,
+          2.0,
+          3.0,
+          4.0,
+          5.0,
+          6.0,
+        ],
+      ),
+    );
+    for (final speed in _extraSpeeds) {
+      if (!list.contains(speed)) {
+        list.add(speed);
+      }
+    }
+    list.sort();
+    return list;
+  }
 
   static List<Pair<SegmentType, SkipType>> get blockSettings {
     final list = _setting.get(SettingBoxKey.blockSettings) as List?;
@@ -188,10 +200,15 @@ abstract final class Pref {
   static NavigationBarType get defaultHomePage =>
       NavigationBarType.values[defaultHomePageIndex];
 
-  static int get defaultHomePageIndex => _setting.get(
-    SettingBoxKey.defaultHomePage,
-    defaultValue: NavigationBarType.home.index,
-  );
+  static int get defaultHomePageIndex {
+    final index = _setting.get(
+      SettingBoxKey.defaultHomePage,
+      defaultValue: NavigationBarType.home.index,
+    );
+    return index >= 0 && index < NavigationBarType.values.length
+        ? index
+        : NavigationBarType.home.index;
+  }
 
   static int get previewQ =>
       _setting.get(SettingBoxKey.previewQuality, defaultValue: 100);

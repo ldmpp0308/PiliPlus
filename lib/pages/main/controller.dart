@@ -98,9 +98,10 @@ class MainController extends GetxController
 
     dynamicBadgeMode = Pref.dynamicBadgeMode;
 
-    hasDyn = navigationBars.contains(NavigationBarType.dynamics);
+    // 已移除动态 tab
+    hasDyn = false;
     if (dynamicBadgeMode != DynamicBadgeMode.hidden) {
-      if (hasDyn && navigationBars[selectedIndex.value] != .dynamics) {
+      if (hasDyn && navigationBars[selectedIndex.value] != .home) {
         if (checkDynamic) {
           _lastCheckDynamicAt = DateTime.now().millisecondsSinceEpoch;
         }
@@ -226,14 +227,22 @@ class MainController extends GetxController
   void setNavBarConfig() {
     List<int>? navBarSort =
         (GStorage.setting.get(SettingBoxKey.navBarSort) as List?)?.fromCast();
-    late final List<NavigationBarType> navigationBars;
+    late List<NavigationBarType> navigationBars;
     if (navBarSort == null ||
-        navBarSort.length != NavigationBarType.values.length) {
+        navBarSort.isEmpty ||
+        navBarSort.toSet().length != navBarSort.length ||
+        navBarSort.any(
+          (e) => e < 0 || e >= NavigationBarType.values.length,
+        )) {
       navigationBars = NavigationBarType.values;
     } else {
       navigationBars = navBarSort
           .map(NavigationBarType.values.elementAt)
           .toList();
+      // 任务 tab 为核心功能，始终保留
+      if (!navigationBars.contains(NavigationBarType.task)) {
+        navigationBars = NavigationBarType.values;
+      }
     }
     this.navigationBars = navigationBars;
     final defPage = Pref.defaultHomePage;
@@ -302,8 +311,6 @@ class MainController extends GetxController
       if (currentNav == NavigationBarType.home) {
         checkDefaultSearch();
         checkUnread();
-      } else if (currentNav == NavigationBarType.dynamics) {
-        setDynCount();
       }
     } else {
       int now = DateTime.now().millisecondsSinceEpoch;
@@ -314,16 +321,12 @@ class MainController extends GetxController
           () {
             if (currentNav == NavigationBarType.home) {
               homeController.onRefresh();
-            } else if (currentNav == NavigationBarType.dynamics) {
-              dynamicController.onRefresh();
             }
           },
         );
       } else {
         if (currentNav == NavigationBarType.home) {
           homeController.toTopOrRefresh();
-        } else if (currentNav == NavigationBarType.dynamics) {
-          dynamicController.toTopOrRefresh();
         }
       }
       _lastSelectTime = now;

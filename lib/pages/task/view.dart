@@ -4,6 +4,9 @@ import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/num_utils.dart';
+import 'package:PiliPlus/utils/storage.dart';
+import 'package:PiliPlus/utils/storage_key.dart';
+import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -15,11 +18,15 @@ class TaskPage extends StatefulWidget {
 }
 
 class _TaskPageState extends State<TaskPage> {
-  static const List<(String, int)> _folders = [
+  /// 默认收藏夹：(名称, mediaId)
+  static const List<(String, int)> _defaultFolders = [
     ('收藏夹 A', Constants.favAId),
     ('收藏夹 B', Constants.favBId),
     ('收藏夹 C', Constants.favCId),
   ];
+
+  /// 用户自定义的收藏夹列表
+  List<(String, int)> _folders = const [];
 
   int _selected = 0;
   final TextEditingController _bvController = TextEditingController();
@@ -34,6 +41,7 @@ class _TaskPageState extends State<TaskPage> {
   @override
   void initState() {
     super.initState();
+    _folders = _loadFolders();
     _bvController.addListener(_onBvChanged);
   }
 
@@ -44,6 +52,109 @@ class _TaskPageState extends State<TaskPage> {
       ..removeListener(_onBvChanged)
       ..dispose();
     super.dispose();
+  }
+
+  List<(String, int)> _loadFolders() {
+    final raw = GStorage.setting.get(SettingBoxKey.taskFavList) as List?;
+    if (raw == null) {
+      return List.of(_defaultFolders);
+    }
+    final list = <(String, int)>[];
+    for (final item in raw) {
+      if (item is! String) continue;
+      final index = item.indexOf('|');
+      if (index < 0) continue;
+      final mediaId = int.tryParse(item.substring(0, index));
+      if (mediaId == null) continue;
+      list.add((item.substring(index + 1), mediaId));
+    }
+    return list;
+  }
+
+  void _saveFolders() {
+    GStorage.setting.put(
+      SettingBoxKey.taskFavList,
+      _folders.map((e) => '${e.$2}|${e.$1}').toList(),
+    );
+  }
+
+  Future<void> _addFolder() async {
+    final idController = TextEditingController();
+    final titleController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('添加收藏夹'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: idController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '收藏夹 ID',
+                hintText: '例如 4020281993',
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(
+                labelText: '名称（可选）',
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('添加'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final mediaId = int.tryParse(idController.text.trim());
+    final title = titleController.text.trim();
+    idController.dispose();
+    titleController.dispose();
+    if (mediaId == null) {
+      SmartDialog.showToast('收藏夹 ID 需为数字');
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _folders = [
+        ..._folders,
+        (title.isEmpty ? '收藏夹 $mediaId' : title, mediaId),
+      ];
+      _selected = _folders.length - 1;
+    });
+    _saveFolders();
+  }
+
+  void _removeFolder(int index) {
+    setState(() {
+      _folders = List.of(_folders)..removeAt(index);
+      if (_selected >= _folders.length) {
+        _selected = _folders.isEmpty ? 0 : _folders.length - 1;
+      }
+    });
+    _saveFolders();
+  }
+
+  void _resetFolders() {
+    setState(() {
+      _folders = List.of(_defaultFolders);
+      _selected = 0;
+    });
+    _saveFolders();
   }
 
   void _onBvChanged() {
@@ -95,6 +206,7 @@ class _TaskPageState extends State<TaskPage> {
   }
 
   void _startTask() {
+    if (_folders.isEmpty) return;
     final String bv = _bvController.text.trim();
     Get.toNamed(
       '/favDetail',
@@ -118,6 +230,18 @@ class _TaskPageState extends State<TaskPage> {
       appBar: AppBar(
         title: const Text('任务'),
         backgroundColor: Colors.transparent,
+        actions: [
+          IconButton(
+            tooltip: '恢复默认收藏夹',
+            onPressed: _resetFolders,
+            icon: const Icon(Icons.settings_backup_restore),
+          ),
+          IconButton(
+            tooltip: '添加收藏夹',
+            onPressed: _addFolder,
+            icon: const Icon(Icons.add),
+          ),
+        ],
       ),
       body: ListView(
         padding: EdgeInsets.only(
@@ -128,6 +252,11 @@ class _TaskPageState extends State<TaskPage> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Text('选择收藏夹', style: labelStyle),
           ),
+          if (_folders.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Text('暂无收藏夹，点击右上角「+」添加', style: labelStyle),
+            ),
           for (int i = 0; i < _folders.length; i++)
             ListTile(
               selected: _selected == i,
@@ -140,6 +269,11 @@ class _TaskPageState extends State<TaskPage> {
               ),
               title: Text(_folders[i].$1),
               subtitle: Text('ID: ${_folders[i].$2}', style: labelStyle),
+              trailing: IconButton(
+                tooltip: '删除',
+                onPressed: () => _removeFolder(i),
+                icon: const Icon(Icons.delete_outline),
+              ),
               onTap: () => setState(() => _selected = i),
             ),
           const Divider(height: 24),

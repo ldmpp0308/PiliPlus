@@ -93,7 +93,7 @@ class _DynamicsPageState extends CommonPageState<DynamicsPage>
   }
 
   bool get checkPage =>
-      _mainController.navigationBars[0] != .dynamics &&
+      _mainController.navigationBars[0] != .home &&
       _mainController.selectedIndex.value == 0;
 
   @override
