@@ -37,7 +37,7 @@ class SettingPage extends StatefulWidget {
 }
 
 class _SettingPageState extends State<SettingPage> {
-  late SettingType _type = SettingType.privacySetting;
+  late SettingType _type = SettingType.playSetting;
   final RxBool _noAccount = Accounts.account.isEmpty.obs;
   late bool _isPortrait;
   late ThemeData theme;
@@ -82,6 +82,15 @@ class _SettingPageState extends State<SettingPage> {
       icon: Icon(Icons.info_outline),
     ),
   ];
+
+  /// 仅展示与播放相关的设置入口，其余入口代码保留、仅隐藏
+  static const List<SettingType> _visibleTypes = [
+    SettingType.playSetting,
+    SettingType.about,
+  ];
+
+  List<_SettingsModel> get _visibleItems =>
+      _items.where((e) => _visibleTypes.contains(e.type)).toList();
 
   @override
   void didChangeDependencies() {
@@ -171,6 +180,7 @@ class _SettingPageState extends State<SettingPage> {
 
   Widget _buildList(ThemeData theme) {
     final padding = MediaQuery.viewPaddingOf(context);
+    final items = _visibleItems;
     TextStyle titleStyle = theme.textTheme.titleMedium!;
     TextStyle subTitleStyle = theme.textTheme.labelMedium!.copyWith(
       color: theme.colorScheme.outline,
@@ -179,8 +189,8 @@ class _SettingPageState extends State<SettingPage> {
       padding: EdgeInsets.only(bottom: padding.bottom + 100),
       children: [
         _buildSearchItem(theme),
-        ..._items
-            .take(_items.length - 1)
+        ...items
+            .take(items.length - 1)
             .map(
               (item) => ListTile(
                 tileColor: _getTileColor(theme, item.type),
@@ -207,10 +217,10 @@ class _SettingPageState extends State<SettingPage> {
                 ),
         ),
         ListTile(
-          tileColor: _getTileColor(theme, _items.last.type),
-          onTap: () => _toPage(_items.last.type),
-          leading: _items.last.icon,
-          title: Text(_items.last.type.title, style: titleStyle),
+          tileColor: _getTileColor(theme, items.last.type),
+          onTap: () => _toPage(items.last.type),
+          leading: items.last.icon,
+          title: Text(items.last.type.title, style: titleStyle),
         ),
       ],
     );

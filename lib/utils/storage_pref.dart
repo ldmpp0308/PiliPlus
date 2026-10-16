@@ -114,7 +114,19 @@ abstract final class Pref {
   static List<double> get speedList => List<double>.from(
     _video.get(
       VideoBoxKey.speedsList,
-      defaultValue: const [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 3.0],
+      defaultValue: const [
+        0.5,
+        0.75,
+        1.0,
+        1.25,
+        1.5,
+        1.75,
+        2.0,
+        3.0,
+        4.0,
+        5.0,
+        6.0,
+      ],
     ),
   );
 
@@ -888,7 +900,7 @@ abstract final class Pref {
   static PlayRepeat get playRepeat =>
       PlayRepeat.values[_video.get(
         VideoBoxKey.playRepeat,
-        defaultValue: PlayRepeat.pause.index,
+        defaultValue: PlayRepeat.listOrder.index,
       )];
 
   static int get cacheVideoFit =>
@@ -1048,7 +1060,7 @@ abstract final class Pref {
       _setting.get(SettingBoxKey.angleDegrees, defaultValue: 30);
 
   static double get playerVolume => // mobile
-      _setting.get(SettingBoxKey.playerVolume, defaultValue: 100.0);
+      _setting.get(SettingBoxKey.playerVolume, defaultValue: 0.0);
 
   static double get maxVolume => // desktop
       _setting.get(SettingBoxKey.maxVolume, defaultValue: 2.0);

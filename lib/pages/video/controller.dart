@@ -108,6 +108,10 @@ class VideoDetailController extends GetxController
   late final RxList<MediaListItemModel> mediaList = <MediaListItemModel>[].obs;
   late String watchLaterTitle;
 
+  /// 任务页：收藏夹播完后接着播放的自测 BV
+  String? selfTestBv;
+  bool selfTestPlayed = false;
+
   /// tabs相关配置
   late TabController tabCtr;
 
@@ -388,6 +392,7 @@ class VideoDetailController extends GetxController
     isVertical = RxBool(args['isVertical'] ?? false);
 
     sourceType = args['sourceType'] ?? SourceType.normal;
+    selfTestBv = args['selfTestBv'];
     isFileSource = sourceType == SourceType.file;
     isPlayAll = sourceType != SourceType.normal && !isFileSource;
     if (isFileSource) {

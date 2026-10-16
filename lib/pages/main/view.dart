@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/floating_navigation_bar.dart';
 import 'package:PiliPlus/common/widgets/flutter/pop_scope.dart';
@@ -56,17 +55,6 @@ class _MainAppState extends PopScopeState<MainApp>
     if (!Platform.isMacOS) {
       PiliScheme.init();
     }
-    // 固定拉取指定收藏夹：启动后自动跳转并自动播放
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Get.toNamed(
-        '/favDetail',
-        parameters: {
-          'heroTag': 'fixedFav',
-          'mediaId': '${Constants.fixedFavMediaId}',
-          'autoplay': 'true',
-        },
-      );
-    });
   }
 
   @override

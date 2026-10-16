@@ -227,7 +227,8 @@ class MainController extends GetxController
     List<int>? navBarSort =
         (GStorage.setting.get(SettingBoxKey.navBarSort) as List?)?.fromCast();
     late final List<NavigationBarType> navigationBars;
-    if (navBarSort == null || navBarSort.isEmpty) {
+    if (navBarSort == null ||
+        navBarSort.length != NavigationBarType.values.length) {
       navigationBars = NavigationBarType.values;
     } else {
       navigationBars = navBarSort

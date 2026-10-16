@@ -83,6 +83,7 @@ class FavDetailController
   late int mediaId;
   late String heroTag;
   late final bool autoplay;
+  String? selfTestBv;
   bool _autoPlayed = false;
   final Rx<FavFolderInfo> folderInfo = FavFolderInfo().obs;
   final RxBool _isOwner = false.obs;
@@ -117,6 +118,7 @@ class FavDetailController
     mediaId = int.parse(Get.parameters['mediaId']!);
     heroTag = Get.parameters['heroTag']!;
     autoplay = Get.parameters['autoplay'] == 'true';
+    selfTestBv = Get.parameters['selfTestBv'];
 
     queryData();
   }
@@ -256,6 +258,7 @@ class FavDetailController
               'desc': !pageDesc,
               if (index != null) 'isContinuePlaying': index != 0,
               'isOwner': isOwner,
+              if (selfTestBv?.isNotEmpty == true) 'selfTestBv': selfTestBv,
             }
           : null,
     );

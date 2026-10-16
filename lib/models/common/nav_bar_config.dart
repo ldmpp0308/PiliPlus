@@ -3,6 +3,7 @@ import 'package:PiliPlus/models/common/enum_with_label.dart';
 import 'package:PiliPlus/pages/dynamics/view.dart';
 import 'package:PiliPlus/pages/home/view.dart';
 import 'package:PiliPlus/pages/mine/view.dart';
+import 'package:PiliPlus/pages/task/view.dart';
 import 'package:material_ui/material_ui.dart';
 
 enum NavigationBarType implements EnumWithLabel {
@@ -11,6 +12,12 @@ enum NavigationBarType implements EnumWithLabel {
     Icon(Icons.home_outlined),
     Icon(Icons.home),
     HomePage(),
+  ),
+  task(
+    '任务',
+    Icon(Icons.task_alt_outlined),
+    Icon(Icons.task_alt),
+    TaskPage(),
   ),
   dynamics(
     '动态',
