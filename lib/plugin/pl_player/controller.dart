@@ -657,7 +657,8 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
           .listen(_onOrientationChanged);
     }
 
-    if (!Accounts.heartbeat.isLogin || Pref.historyPause) {
+    // 自定义：只要登录就强制上报，不受「暂停观看记录」开关影响
+    if (!Accounts.heartbeat.isLogin) {
       enableHeart = false;
     }
 
