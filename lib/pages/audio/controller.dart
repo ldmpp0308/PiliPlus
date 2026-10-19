@@ -360,7 +360,7 @@ class AudioController extends GetxController
         stat: BKStat(
           view: detail.stat?.view,
           like: detail.stat?.like,
-          coin: detail.stat?.coin,
+          coin: detail.stat?.coin.toInt(),
           favourite: detail.stat?.favorite,
           reply: detail.stat?.reply,
           share: detail.stat?.share,
