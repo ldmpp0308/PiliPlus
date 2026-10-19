@@ -10,6 +10,11 @@ import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart'
         PlayURLResp,
         PlaylistSource,
         PlayInfo,
+        PlayItem,
+        BKArchive,
+        BKArcPart,
+        Author,
+        BKStat,
         ThumbUpReq_ThumbType,
         ListOrder,
         DashItem,
@@ -17,6 +22,7 @@ import 'package:PiliPlus/grpc/bilibili/app/listener/v1.pb.dart'
 import 'package:PiliPlus/http/browser_ua.dart';
 import 'package:PiliPlus/http/constants.dart';
 import 'package:PiliPlus/http/loading_state.dart';
+import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models/common/audio_normalization.dart';
 import 'package:PiliPlus/models/video/play/url.dart' as http_model show Volume;
 import 'package:PiliPlus/pages/common/common_intro_controller.dart'
@@ -86,6 +92,10 @@ class AudioController extends GetxController
 
   int? index;
   List<DetailItem>? playlist;
+
+  /// 任务页填写的自测 BV，收藏夹播完后接着播放
+  String? _selfTestBv;
+  bool _selfTestAppended = false;
 
   late double speed = 1.0;
 
@@ -164,6 +174,7 @@ class AudioController extends GetxController
     subId = (args['subId'] as List<int>?)?.map(Int64.new).toList() ?? [oid];
     itemType = args['itemType'];
     from = args['from'];
+    _selfTestBv = args['selfTestBv'] as String?;
     _start = args['start'];
     final int? extraId = args['extraId'];
     if (extraId != null) {
@@ -263,6 +274,7 @@ class AudioController extends GetxController
     );
     if (res case Success(:final response)) {
       if (isInit) {
+        _selfTestAppended = false;
         late final paginationReply = response.paginationReply;
         _prev = response.reachStart ? null : paginationReply.prev;
         _next = response.reachEnd ? null : paginationReply.next;
@@ -270,8 +282,8 @@ class AudioController extends GetxController
         if (index != -1) {
           this.index = index;
           _updateCurrItem(response.list[index]);
-          playlist = response.list;
         }
+        playlist = response.list;
       } else if (isLoadPrev) {
         _prev = response.reachStart ? null : response.paginationReply.prev;
         if (response.list.isNotEmpty) {
@@ -284,8 +296,84 @@ class AudioController extends GetxController
           playlist?.addAll(response.list);
         }
       }
+      if (_next == null) {
+        await _appendSelfTestBvIfNeeded();
+      }
     } else {
       res.toast();
+    }
+  }
+
+  /// 收藏夹列表加载完后，把任务页填写的自测 BV 追加到播放列表末尾
+  Future<void> _appendSelfTestBvIfNeeded() async {
+    final bv = _selfTestBv;
+    if (_selfTestAppended ||
+        bv == null ||
+        bv.isEmpty ||
+        from != PlaylistSource.USER_FAVOURITE ||
+        playlist == null) {
+      return;
+    }
+    _selfTestAppended = true;
+    try {
+      final detail = (await VideoHttp.videoIntro(bvid: bv)).dataOrNull;
+      final int? aid = detail?.aid;
+      final int? cid = detail?.cid ?? detail?.pages?.firstOrNull?.cid;
+      if (detail == null || aid == null || cid == null) {
+        _selfTestAppended = false;
+        return;
+      }
+      final int64Aid = Int64(aid);
+      if (playlist!.any((e) => e.item.oid == int64Aid)) {
+        return;
+      }
+      final item = DetailItem(
+        item: PlayItem(
+          itemType: 1,
+          oid: int64Aid,
+          subId: [Int64(cid)],
+        ),
+        arc: BKArchive(
+          oid: int64Aid,
+          title: detail.title,
+          cover: detail.pic,
+          desc: detail.desc,
+          duration: Int64(detail.duration ?? 0),
+          publish: Int64(detail.pubdate ?? 0),
+          displayedOid: detail.bvid ?? bv,
+          copyright: detail.copyright,
+        ),
+        parts: [
+          BKArcPart(
+            oid: int64Aid,
+            subId: Int64(cid),
+            title: detail.title,
+            duration: Int64(detail.duration ?? 0),
+            page: 1,
+          ),
+        ],
+        owner: Author(
+          mid: Int64(detail.owner?.mid ?? 0),
+          name: detail.owner?.name,
+          avatar: detail.owner?.face,
+        ),
+        stat: BKStat(
+          view: detail.stat?.view,
+          like: detail.stat?.like,
+          coin: detail.stat?.coin,
+          favourite: detail.stat?.favorite,
+          reply: detail.stat?.reply,
+          share: detail.stat?.share,
+        ),
+        playable: 1,
+      );
+      playlist!.add(item);
+      if (index == null && oid == int64Aid) {
+        index = playlist!.length - 1;
+        _updateCurrItem(item);
+      }
+    } catch (_) {
+      _selfTestAppended = false;
     }
   }
 

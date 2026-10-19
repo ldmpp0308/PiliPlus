@@ -1482,6 +1482,7 @@ class VideoDetailController extends GetxController
       start: playedTime,
       audioUrl: audioUrl,
       extraId: extraId,
+      selfTestBv: sourceType == SourceType.fav ? selfTestBv : null,
     );
   }
 
