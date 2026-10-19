@@ -111,6 +111,7 @@ class VideoDetailController extends GetxController
   /// 任务页：收藏夹播完后接着播放的自测 BV
   String? selfTestBv;
   bool selfTestPlayed = false;
+  bool _selfTestAppended = false;
 
   /// tabs相关配置
   late TabController tabCtr;
@@ -446,8 +447,10 @@ class VideoDetailController extends GetxController
           : false,
     );
     if (res case Success(:final response)) {
+      final bool isLastPage = response.mediaList.length < 20;
       if (response.mediaList.isNotEmpty) {
         if (isReverse) {
+          _selfTestAppended = false;
           mediaList.value = response.mediaList;
           for (final item in mediaList) {
             if (item.cid != null) {
@@ -463,8 +466,51 @@ class VideoDetailController extends GetxController
           mediaList.addAll(response.mediaList);
         }
       }
+      final count = args['count'];
+      if (isLastPage || (count != null && mediaList.length >= count)) {
+        await _appendSelfTestBvIfNeeded();
+      }
     } else {
       res.toast();
+    }
+  }
+
+  /// 收藏夹列表加载完后，把任务页填写的自测 BV 追加到播放列表末尾
+  Future<void> _appendSelfTestBvIfNeeded() async {
+    if (_selfTestAppended ||
+        sourceType != SourceType.fav ||
+        selfTestBv?.isNotEmpty != true) {
+      return;
+    }
+    _selfTestAppended = true;
+    if (mediaList.any((e) => e.bvid == selfTestBv)) return;
+    try {
+      final detail = (await VideoHttp.videoIntro(bvid: selfTestBv!)).dataOrNull;
+      final int? firstCid = detail?.cid ?? detail?.pages?.firstOrNull?.cid;
+      if (detail?.aid == null || firstCid == null) {
+        _selfTestAppended = false;
+        return;
+      }
+      mediaList.add(
+        MediaListItemModel.fromJson({
+          'id': detail!.aid,
+          'bv_id': detail.bvid ?? selfTestBv,
+          'title': detail.title,
+          'cover': detail.pic,
+          'duration': detail.duration,
+          'type': 2,
+          'upper': detail.owner?.toJson(),
+          'cnt_info': {
+            'play': detail.stat?.view,
+            'danmaku': detail.stat?.danmaku,
+          },
+          'pages': [
+            {'id': firstCid},
+          ],
+        }),
+      );
+    } catch (_) {
+      _selfTestAppended = false;
     }
   }
 

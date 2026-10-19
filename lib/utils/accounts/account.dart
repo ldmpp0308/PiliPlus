@@ -55,6 +55,10 @@ class LoginAccount extends Account {
   @HiveField(3)
   final Set<AccountType> type;
 
+  /// 用户昵称，用于账号切换列表展示
+  @HiveField(4)
+  String? uname;
+
   @override
   bool activated = false;
 
@@ -97,6 +101,7 @@ class LoginAccount extends Account {
     'accessKey': accessKey,
     'refresh': refresh,
     'type': type.map((i) => i.index).toList(),
+    'uname': uname,
   };
 
   late final String _midStr = cookieJar
@@ -111,6 +116,7 @@ class LoginAccount extends Account {
     this.accessKey,
     this.refresh, [
     Set<AccountType>? type,
+    this.uname,
   ]) : type = type ?? {} {
     cookieJar.setBuvid3();
   }
@@ -120,6 +126,7 @@ class LoginAccount extends Account {
     json['accessKey'],
     json['refresh'],
     (json['type'] as Iterable?)?.map((i) => AccountType.values[i]).toSet(),
+    json['uname'] as String?,
   );
 
   @override

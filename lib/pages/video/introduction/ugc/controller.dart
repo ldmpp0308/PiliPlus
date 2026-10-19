@@ -700,8 +700,11 @@ class UgcIntroController extends CommonIntroController with ReloadMixin {
           return playRelated();
         } else if (videoDetailCtr.isPlayAll &&
             !videoDetailCtr.selfTestPlayed &&
-            videoDetailCtr.selfTestBv?.isNotEmpty == true) {
-          // 收藏夹播完后接着播放自测 BV
+            videoDetailCtr.selfTestBv?.isNotEmpty == true &&
+            !videoDetailCtr.mediaList.any(
+              (e) => e.bvid == videoDetailCtr.selfTestBv,
+            )) {
+          // 自测 BV 未追加进播放列表时（如请求失败），兜底播放
           videoDetailCtr.selfTestPlayed = true;
           onChangeEpisode(MediaListItemModel(bvid: videoDetailCtr.selfTestBv!));
           return true;

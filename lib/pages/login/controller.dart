@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:PiliPlus/common/dial_prefix.dart';
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/radio_widget.dart';
+import 'package:PiliPlus/http/api.dart';
 import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/login.dart';
@@ -638,17 +639,37 @@ class LoginPageController extends GetxController
     }
   }
 
-  static Future<void>? switchAccountDialog(BuildContext context) {
+  static Future<void> switchAccountDialog(BuildContext context) async {
     if (Accounts.account.isEmpty) {
       SmartDialog.showToast('请先登录');
-      return Get.toNamed('/loginPage');
+      Get.toNamed('/loginPage');
+      return;
     }
+    // 补全账号昵称（老数据无昵称时懒加载并持久化）
+    await Future.wait(
+      Accounts.account.values
+          .where((e) => e.uname?.isNotEmpty != true)
+          .map((account) async {
+            try {
+              final res = await Request().get(
+                Api.userInfo,
+                options: Options(extra: {'account': account}),
+              );
+              final uname = res.data['data']?['uname'];
+              if (uname is String && uname.isNotEmpty) {
+                account.uname = uname;
+                await account.onChange();
+              }
+            } catch (_) {}
+          }),
+    );
+    if (!context.mounted) return;
     final colorScheme = ColorScheme.of(context);
     final selectAccount = List.of(Accounts.accountMode);
     final options = {
       AnonymousAccount(): '0',
       ...Accounts.account.toMap().map(
-        (k, v) => MapEntry(v, k as String),
+        (k, v) => MapEntry(v, v.uname ?? (k as String)),
       ),
     };
     bool quickSelect = selectAccount.every((e) => e == selectAccount.first);
