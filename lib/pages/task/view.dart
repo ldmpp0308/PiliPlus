@@ -249,8 +249,17 @@ class _TaskPageState extends State<TaskPage> {
         ),
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text('选择收藏夹', style: labelStyle),
+            padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
+            child: Row(
+              children: [
+                Expanded(child: Text('选择收藏夹', style: labelStyle)),
+                TextButton.icon(
+                  onPressed: _addFolder,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('添加收藏夹'),
+                ),
+              ],
+            ),
           ),
           if (_folders.isEmpty)
             Padding(
