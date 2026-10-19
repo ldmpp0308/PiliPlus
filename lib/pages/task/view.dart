@@ -132,7 +132,7 @@ class _TaskPageState extends State<TaskPage> {
     setState(() {
       _folders = [
         ..._folders,
-        (title.isEmpty ? '收藏夹 $mediaId' : title, mediaId),
+        (title.isEmpty ? '收藏夹 ${_folders.length + 1}' : title, mediaId),
       ];
       _selected = _folders.length - 1;
     });
@@ -268,7 +268,6 @@ class _TaskPageState extends State<TaskPage> {
                 color: _selected == i ? colorScheme.primary : outline,
               ),
               title: Text(_folders[i].$1),
-              subtitle: Text('ID: ${_folders[i].$2}', style: labelStyle),
               trailing: IconButton(
                 tooltip: '删除',
                 onPressed: () => _removeFolder(i),
