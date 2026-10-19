@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/http/fav.dart';
-import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models_new/fav/fav_folder/list.dart';
 import 'package:PiliPlus/utils/accounts.dart';
@@ -46,12 +45,10 @@ class _TaskPageState extends State<TaskPage> {
   void initState() {
     super.initState();
     _folders = _loadFolders();
-    final savedBv = GStorage.setting.get(SettingBoxKey.taskSelfTestBv);
-    if (savedBv is String && savedBv.isNotEmpty) {
-      _bvController.text = savedBv;
-    }
+    _bvController.text =
+        GStorage.setting.get(SettingBoxKey.taskSelfTestBv) as String? ?? '';
     _bvController.addListener(_onBvChanged);
-    if (_bvController.text.isNotEmpty) {
+    if (_bvController.text.trim().isNotEmpty) {
       _onBvChanged();
     }
   }
@@ -90,88 +87,90 @@ class _TaskPageState extends State<TaskPage> {
   }
 
   Future<void> _addFolder() async {
-    final choice = await showModalBottomSheet<String>(
+    final source = await showDialog<String>(
       context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.folder_open),
-              title: const Text('从我的收藏夹选择'),
-              onTap: () => Navigator.pop(context, 'mine'),
+      builder: (context) => SimpleDialog(
+        title: const Text('添加收藏夹'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'mine'),
+            child: const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.folder_open),
+              title: Text('从我的收藏夹选择'),
             ),
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('手动输入收藏夹 ID'),
-              onTap: () => Navigator.pop(context, 'manual'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'manual'),
+            child: const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.edit_outlined),
+              title: Text('手动输入收藏夹 ID'),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
-    if (!mounted) return;
-    if (choice == 'mine') {
-      await _pickMyFavFolder();
-    } else if (choice == 'manual') {
+    if (!mounted || source == null) return;
+    if (source == 'manual') {
       await _addFolderManually();
+    } else {
+      await _pickMyFolder();
     }
   }
 
-  /// 拉取当前账号的收藏夹列表供选择
-  Future<void> _pickMyFavFolder() async {
+  /// 从当前账号的收藏夹列表中选择
+  Future<void> _pickMyFolder() async {
     if (!Accounts.main.isLogin) {
       SmartDialog.showToast('请先登录');
       return;
     }
-    SmartDialog.showLoading(msg: '加载收藏夹…');
-    final res = await FavHttp.allFavFolders(Accounts.main.mid);
-    SmartDialog.dismiss();
+    final res = await FavHttp.userfavFolder(
+      pn: 1,
+      ps: 50,
+      mid: Accounts.main.mid,
+    );
     if (!mounted) return;
-    if (res case Success(:final response)) {
-      final list = response.list ?? const <FavFolderInfo>[];
-      if (list.isEmpty) {
-        SmartDialog.showToast('当前账号还没有收藏夹');
-        return;
-      }
-      final selected = await showModalBottomSheet<FavFolderInfo>(
-        context: context,
-        isScrollControlled: true,
-        builder: (context) => SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
-                  '选择我的收藏夹',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                ),
-              ),
-              for (final item in list)
-                ListTile(
-                  leading: const Icon(Icons.folder_outlined),
-                  title: Text(item.title),
-                  subtitle: Text('${item.mediaCount} 个视频'),
-                  onTap: () => Navigator.pop(context, item),
-                ),
-            ],
-          ),
-        ),
-      );
-      if (selected == null || !mounted) return;
-      if (_folders.any((e) => e.$2 == selected.id)) {
-        SmartDialog.showToast('该收藏夹已在列表中');
-        return;
-      }
-      setState(() {
-        _folders = [..._folders, (selected.title, selected.id)];
-        _selected = _folders.length - 1;
-      });
-      _saveFolders();
-    } else {
-      res.toast();
+    final list = res.dataOrNull?.list;
+    if (list == null) {
+      SmartDialog.showToast('收藏夹获取失败：$res');
+      return;
     }
+    if (list.isEmpty) {
+      SmartDialog.showToast('暂无收藏夹');
+      return;
+    }
+    final selected = await showDialog<FavFolderInfo>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('选择收藏夹'),
+        children: [
+          for (final item in list)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, item),
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.folder_outlined),
+                title: Text(item.title),
+                subtitle: Text('${item.mediaCount} 个内容'),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (!mounted || selected == null) return;
+    if (_folders.any((e) => e.$2 == selected.id)) {
+      SmartDialog.showToast('该收藏夹已添加');
+      return;
+    }
+    setState(() {
+      _folders = [
+        ..._folders,
+        (selected.title, selected.id),
+      ];
+      _selected = _folders.length - 1;
+    });
+    _saveFolders();
   }
 
   Future<void> _addFolderManually() async {
@@ -254,13 +253,17 @@ class _TaskPageState extends State<TaskPage> {
   }
 
   void _onBvChanged() {
+    // 记住自测 BV，下次进入任务页自动带出
+    GStorage.setting.put(
+      SettingBoxKey.taskSelfTestBv,
+      _bvController.text.trim(),
+    );
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 600), _queryBv);
   }
 
   Future<void> _queryBv() async {
     final String bv = _bvController.text.trim();
-    GStorage.setting.put(SettingBoxKey.taskSelfTestBv, bv);
     if (bv == _queriedBv) return;
     if (bv.isEmpty) {
       if (!mounted) return;
