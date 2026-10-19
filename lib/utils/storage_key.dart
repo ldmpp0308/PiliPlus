@@ -243,6 +243,7 @@ abstract final class SettingBoxKey {
       liveCdnUrl = 'liveCdnUrl',
       saveReply = 'saveReply',
       taskFavList = 'taskFavList',
+      taskSelfTestBv = 'taskSelfTestBv',
       appFont = 'appFont';
 }
 
