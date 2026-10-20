@@ -1488,37 +1488,6 @@ class HeaderControlState extends State<HeaderControl>
                     );
                   }),
                 if (!isFileSource) ...[
-                  if (!isFSOrPip) ...[
-                    if (videoDetailCtr.isUgc)
-                      SizedBox(
-                        width: btnWidth,
-                        height: btnHeight,
-                        child: IconButton(
-                          tooltip: '听音频',
-                          style: btnStyle,
-                          onPressed: videoDetailCtr.toAudioPage,
-                          icon: const Icon(
-                            Icons.headphones_outlined,
-                            size: 19,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    SizedBox(
-                      width: btnWidth,
-                      height: btnHeight,
-                      child: IconButton(
-                        tooltip: '投屏',
-                        style: btnStyle,
-                        onPressed: videoDetailCtr.onCast,
-                        icon: const Icon(
-                          Icons.cast,
-                          size: 19,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ],
                   if (kDebugMode || plPlayerController.enableSponsorBlock)
                     SizedBox(
                       width: btnWidth,

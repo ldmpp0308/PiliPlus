@@ -41,6 +41,16 @@ class _TaskPageState extends State<TaskPage> {
   int? _bvView;
   String? _bvError;
 
+  /// 收藏夹入口默认隐藏，连续点击「选择收藏夹」6 次后显示
+  bool _folderEntryVisible = false;
+  int _folderTapCount = 0;
+  Timer? _folderTapTimer;
+
+  int? _folderDuration;
+  bool _durationLoading = false;
+  int _durationReqId = 0;
+  final Map<int, int> _durationCache = {};
+
   @override
   void initState() {
     super.initState();
@@ -51,16 +61,112 @@ class _TaskPageState extends State<TaskPage> {
     if (_bvController.text.trim().isNotEmpty) {
       _onBvChanged();
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshDuration());
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    _folderTapTimer?.cancel();
     _bvController
       ..removeListener(_onBvChanged)
       ..dispose();
     super.dispose();
   }
+
+  void _onFolderEntryTap() {
+    if (_folderEntryVisible) return;
+    _folderTapTimer?.cancel();
+    _folderTapCount++;
+    if (_folderTapCount >= 6) {
+      _folderTapCount = 0;
+      setState(() => _folderEntryVisible = true);
+      return;
+    }
+    _folderTapTimer = Timer(const Duration(seconds: 2), () {
+      _folderTapCount = 0;
+    });
+  }
+
+  Future<void> _refreshDuration() async {
+    if (_folders.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _folderDuration = null;
+          _durationLoading = false;
+        });
+      }
+      return;
+    }
+    final mediaId = _folders[_selected].$2;
+    final cached = _durationCache[mediaId];
+    if (cached != null) {
+      setState(() {
+        _folderDuration = cached;
+        _durationLoading = false;
+      });
+      return;
+    }
+    final reqId = ++_durationReqId;
+    setState(() {
+      _durationLoading = true;
+      _folderDuration = null;
+    });
+    final total = await _fetchFolderDuration(mediaId);
+    if (!mounted || reqId != _durationReqId) return;
+    if (total != null) {
+      _durationCache[mediaId] = total;
+    }
+    setState(() {
+      _durationLoading = false;
+      _folderDuration = total;
+    });
+  }
+
+  /// 拉取收藏夹内全部视频并累计时长（秒）
+  Future<int?> _fetchFolderDuration(int mediaId) async {
+    const ps = 20;
+    var total = 0;
+    for (var pn = 1; pn <= 50; pn++) {
+      final res = await FavHttp.userFavFolderDetail(
+        mediaId: mediaId,
+        pn: pn,
+        ps: ps,
+      );
+      final data = res.dataOrNull;
+      if (data == null) return null;
+      final medias = data.medias;
+      if (medias == null || medias.isEmpty) break;
+      for (final item in medias) {
+        total += item.duration ?? 0;
+      }
+      if (data.hasMore != true) break;
+    }
+    return total;
+  }
+
+  /// 建议倍速：让播放列表循环一圈刚好 5 分 20 秒，向上取整，上限 6.1
+  double? get _recommendedSpeed {
+    final total = _folderDuration;
+    if (total == null || total <= 0) return null;
+    var speed = (total / 320).ceilToDouble();
+    if (speed < 1) speed = 1;
+    if (speed > 6.1) speed = 6.1;
+    return speed;
+  }
+
+  String _formatDuration(int seconds) {
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    final s = seconds % 60;
+    if (h > 0) return '$h小时$m分$s秒';
+    if (m > 0) return '$m分$s秒';
+    return '$s秒';
+  }
+
+  String _speedText(double speed) => speed == speed.truncateToDouble()
+      ? speed.toInt().toString()
+      : speed.toStringAsFixed(1);
 
   List<(String, int)> _loadFolders() {
     final raw = GStorage.setting.get(SettingBoxKey.taskFavList) as List?;
@@ -171,6 +277,7 @@ class _TaskPageState extends State<TaskPage> {
       _selected = _folders.length - 1;
     });
     _saveFolders();
+    _refreshDuration();
   }
 
   Future<void> _addFolderManually() async {
@@ -232,6 +339,7 @@ class _TaskPageState extends State<TaskPage> {
       _selected = _folders.length - 1;
     });
     _saveFolders();
+    _refreshDuration();
   }
 
   void _removeFolder(int index) {
@@ -242,6 +350,7 @@ class _TaskPageState extends State<TaskPage> {
       }
     });
     _saveFolders();
+    _refreshDuration();
   }
 
   void _resetFolders() {
@@ -250,6 +359,7 @@ class _TaskPageState extends State<TaskPage> {
       _selected = 0;
     });
     _saveFolders();
+    _refreshDuration();
   }
 
   void _onBvChanged() {
@@ -309,6 +419,10 @@ class _TaskPageState extends State<TaskPage> {
     if (_folders.isEmpty) return;
     final String bv = _bvController.text.trim();
     GStorage.setting.put(SettingBoxKey.taskSelfTestBv, bv);
+    final speed = _recommendedSpeed;
+    if (speed != null) {
+      GStorage.video.put(VideoBoxKey.playSpeedDefault, speed);
+    }
     Get.toNamed(
       '/favDetail',
       parameters: {
@@ -331,18 +445,20 @@ class _TaskPageState extends State<TaskPage> {
       appBar: AppBar(
         title: const Text('任务'),
         backgroundColor: Colors.transparent,
-        actions: [
-          IconButton(
-            tooltip: '恢复默认收藏夹',
-            onPressed: _resetFolders,
-            icon: const Icon(Icons.settings_backup_restore),
-          ),
-          IconButton(
-            tooltip: '添加收藏夹',
-            onPressed: _addFolder,
-            icon: const Icon(Icons.add),
-          ),
-        ],
+        actions: _folderEntryVisible
+            ? [
+                IconButton(
+                  tooltip: '恢复默认收藏夹',
+                  onPressed: _resetFolders,
+                  icon: const Icon(Icons.settings_backup_restore),
+                ),
+                IconButton(
+                  tooltip: '添加收藏夹',
+                  onPressed: _addFolder,
+                  icon: const Icon(Icons.add),
+                ),
+              ]
+            : null,
       ),
       body: ListView(
         padding: EdgeInsets.only(
@@ -353,39 +469,49 @@ class _TaskPageState extends State<TaskPage> {
             padding: const EdgeInsets.fromLTRB(16, 4, 8, 0),
             child: Row(
               children: [
-                Expanded(child: Text('选择收藏夹', style: labelStyle)),
-                TextButton.icon(
-                  onPressed: _addFolder,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('添加收藏夹'),
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _onFolderEntryTap,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text('选择收藏夹', style: labelStyle),
+                    ),
+                  ),
                 ),
+                if (_folderEntryVisible)
+                  TextButton.icon(
+                    onPressed: _addFolder,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('添加收藏夹'),
+                  ),
               ],
             ),
           ),
-          if (_folders.isEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Text('暂无收藏夹，点击右上角「+」添加', style: labelStyle),
-            ),
-          for (int i = 0; i < _folders.length; i++)
-            ListTile(
-              selected: _selected == i,
-              selectedTileColor: colorScheme.secondaryContainer,
-              leading: Icon(
-                _selected == i
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_off,
-                color: _selected == i ? colorScheme.primary : outline,
+          if (_folderEntryVisible) ...[
+            if (_folders.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Text('暂无收藏夹，点击右上角「+」添加', style: labelStyle),
               ),
-              title: Text(_folders[i].$1),
-              trailing: IconButton(
-                tooltip: '删除',
-                onPressed: () => _removeFolder(i),
-                icon: const Icon(Icons.delete_outline),
+            for (int i = 0; i < _folders.length; i++)
+              ListTile(
+                selected: _selected == i,
+                selectedTileColor: colorScheme.secondaryContainer,
+                leading: Icon(
+                  _selected == i
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_off,
+                  color: _selected == i ? colorScheme.primary : outline,
+                ),
+                title: Text(_folders[i].$1),
+                onTap: () {
+                  setState(() => _selected = i);
+                  _refreshDuration();
+                },
               ),
-              onTap: () => setState(() => _selected = i),
-            ),
-          const Divider(height: 24),
+            const Divider(height: 24),
+          ],
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
             child: Text('自测 BV（可选，收藏夹播完后自动续播）', style: labelStyle),
@@ -406,6 +532,18 @@ class _TaskPageState extends State<TaskPage> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: _buildBvInfo(colorScheme),
           ),
+          if (_folders.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Text(
+                _durationLoading
+                    ? '正在统计当前收藏夹总时长…'
+                    : _recommendedSpeed != null
+                    ? '当前收藏夹总时长${_formatDuration(_folderDuration!)}，建议${_speedText(_recommendedSpeed!)}倍速播放'
+                    : '当前收藏夹总时长统计失败',
+                style: TextStyle(fontSize: 13, color: colorScheme.primary),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
             child: FilledButton(
