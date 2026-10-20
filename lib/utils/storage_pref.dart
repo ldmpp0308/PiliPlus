@@ -119,8 +119,6 @@ abstract final class Pref {
       _video.get(
         VideoBoxKey.speedsList,
         defaultValue: const [
-          0.5,
-          0.75,
           1.0,
           1.25,
           1.5,
@@ -133,6 +131,8 @@ abstract final class Pref {
         ],
       ),
     );
+    // 去掉 1.0 以下的倍速
+    list.removeWhere((speed) => speed < 1.0);
     for (final speed in _extraSpeeds) {
       if (!list.contains(speed)) {
         list.add(speed);
@@ -747,7 +747,7 @@ abstract final class Pref {
   );
 
   static bool get enableShowDanmaku =>
-      _setting.get(SettingBoxKey.enableShowDanmaku, defaultValue: true);
+      _setting.get(SettingBoxKey.enableShowDanmaku, defaultValue: false);
 
   static bool get enableShowLiveDanmaku =>
       _setting.get(SettingBoxKey.enableShowLiveDanmaku, defaultValue: true);
@@ -917,14 +917,14 @@ abstract final class Pref {
   static PlayRepeat get playRepeat =>
       PlayRepeat.values[_video.get(
         VideoBoxKey.playRepeat,
-        defaultValue: PlayRepeat.listOrder.index,
+        defaultValue: PlayRepeat.listCycle.index,
       )];
 
   static int get cacheVideoFit =>
       _video.get(VideoBoxKey.cacheVideoFit, defaultValue: 1);
 
   static bool get continuePlayInBackground =>
-      _setting.get(SettingBoxKey.continuePlayInBackground, defaultValue: false);
+      _setting.get(SettingBoxKey.continuePlayInBackground, defaultValue: true);
 
   static bool get directExitOnBack =>
       _setting.get(SettingBoxKey.directExitOnBack, defaultValue: false);

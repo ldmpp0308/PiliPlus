@@ -145,11 +145,11 @@ class _TaskPageState extends State<TaskPage> {
     return total;
   }
 
-  /// 建议倍速：让播放列表循环一圈刚好 5 分 20 秒，向上取整，上限 6.1
+  /// 建议倍速：让播放列表循环一圈刚好 5 分 20 秒，保留一位小数，上限 6.1
   double? get _recommendedSpeed {
     final total = _folderDuration;
     if (total == null || total <= 0) return null;
-    var speed = (total / 320).ceilToDouble();
+    var speed = (total / 320 * 10).round() / 10;
     if (speed < 1) speed = 1;
     if (speed > 6.1) speed = 6.1;
     return speed;

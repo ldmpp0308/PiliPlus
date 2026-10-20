@@ -28,7 +28,7 @@ List<SettingsModel> get playSettings => [
     subtitle: '是否展示弹幕',
     leading: Icon(CustomIcons.dm_settings),
     setKey: SettingBoxKey.enableShowDanmaku,
-    defaultVal: true,
+    defaultVal: false,
   ),
   if (PlatformUtils.isMobile)
     const SwitchModel(
@@ -56,7 +56,7 @@ List<SettingsModel> get playSettings => [
     subtitle: '进入详情页自动播放',
     leading: Icon(Icons.motion_photos_auto_outlined),
     setKey: SettingBoxKey.autoPlayEnable,
-    defaultVal: false,
+    defaultVal: true,
   ),
   const SwitchModel(
     title: '全屏显示锁定按钮',
@@ -193,7 +193,7 @@ List<SettingsModel> get playSettings => [
       subtitle: '进入后台时继续播放',
       leading: Icon(Icons.motion_photos_pause_outlined),
       setKey: SettingBoxKey.continuePlayInBackground,
-      defaultVal: false,
+      defaultVal: true,
     ),
   if ((Platform.isAndroid && PiliAndroidHelper.isPipAvailable) ||
       (Platform.isIOS && IOSPipHelper.isAvailable))

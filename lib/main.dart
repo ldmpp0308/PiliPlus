@@ -9,6 +9,7 @@ import 'package:PiliPlus/common/widgets/scale_app.dart';
 import 'package:PiliPlus/common/widgets/scroll_behavior.dart';
 import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/models/common/theme/theme_color_type.dart';
+import 'package:PiliPlus/plugin/pl_player/models/play_repeat.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/fullscreen.dart';
 import 'package:PiliPlus/router/app_pages.dart';
 import 'package:PiliPlus/services/account_service.dart';
@@ -91,6 +92,21 @@ Future<void> _initAppPath() async {
   appSupportDirPath = (await getApplicationSupportDirectory()).path;
 }
 
+/// 一次性写入默认播放设置（升级安装后也生效）
+Future<void> _applyCustomPlayerDefaults() async {
+  if (GStorage.setting.get(SettingBoxKey.customPlayerDefaultsV1) == true) {
+    return;
+  }
+  await Future.wait([
+    GStorage.setting.put(SettingBoxKey.autoPlayEnable, true),
+    GStorage.setting.put(SettingBoxKey.continuePlayInBackground, true),
+    GStorage.setting.put(SettingBoxKey.enableBackgroundPlay, true),
+    GStorage.setting.put(SettingBoxKey.enableShowDanmaku, false),
+    GStorage.video.put(VideoBoxKey.playRepeat, PlayRepeat.listCycle.index),
+  ]);
+  await GStorage.setting.put(SettingBoxKey.customPlayerDefaultsV1, true);
+}
+
 void main() async {
   ScaledWidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
@@ -103,6 +119,7 @@ void main() async {
     DeviceUtils.exitApp();
   }
   ScaledWidgetsFlutterBinding.instance.scaleFactor = Pref.uiScale;
+  await _applyCustomPlayerDefaults();
   await Future.wait([
     _initDownPath(),
     _initTmpPath(),
