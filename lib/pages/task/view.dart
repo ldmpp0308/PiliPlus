@@ -479,18 +479,19 @@ class _TaskPageState extends State<TaskPage> {
                     ),
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: _addFolder,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('添加收藏夹'),
-                ),
+                if (_folderEntryVisible)
+                  TextButton.icon(
+                    onPressed: _addFolder,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('添加收藏夹'),
+                  ),
               ],
             ),
           ),
           if (_folders.isEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Text('暂无收藏夹，点击右上角「+」添加', style: labelStyle),
+              child: Text('暂无收藏夹，连点上方「选择收藏夹」6 次可添加', style: labelStyle),
             ),
           for (int i = 0; i < _folders.length; i++)
             ListTile(
