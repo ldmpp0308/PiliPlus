@@ -479,39 +479,36 @@ class _TaskPageState extends State<TaskPage> {
                     ),
                   ),
                 ),
-                if (_folderEntryVisible)
-                  TextButton.icon(
-                    onPressed: _addFolder,
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('添加收藏夹'),
-                  ),
+                TextButton.icon(
+                  onPressed: _addFolder,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('添加收藏夹'),
+                ),
               ],
             ),
           ),
-          if (_folderEntryVisible) ...[
-            if (_folders.isEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                child: Text('暂无收藏夹，点击右上角「+」添加', style: labelStyle),
+          if (_folders.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Text('暂无收藏夹，点击右上角「+」添加', style: labelStyle),
+            ),
+          for (int i = 0; i < _folders.length; i++)
+            ListTile(
+              selected: _selected == i,
+              selectedTileColor: colorScheme.secondaryContainer,
+              leading: Icon(
+                _selected == i
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_off,
+                color: _selected == i ? colorScheme.primary : outline,
               ),
-            for (int i = 0; i < _folders.length; i++)
-              ListTile(
-                selected: _selected == i,
-                selectedTileColor: colorScheme.secondaryContainer,
-                leading: Icon(
-                  _selected == i
-                      ? Icons.radio_button_checked
-                      : Icons.radio_button_off,
-                  color: _selected == i ? colorScheme.primary : outline,
-                ),
-                title: Text(_folders[i].$1),
-                onTap: () {
-                  setState(() => _selected = i);
-                  _refreshDuration();
-                },
-              ),
-            const Divider(height: 24),
-          ],
+              title: Text(_folders[i].$1),
+              onTap: () {
+                setState(() => _selected = i);
+                _refreshDuration();
+              },
+            ),
+          const Divider(height: 24),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
             child: Text('自测 BV（可选，收藏夹播完后自动续播）', style: labelStyle),
