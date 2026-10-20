@@ -49,6 +49,21 @@ class MineController extends GetxController with AccountMixin {
 
   late final list = <({IconData icon, String title, VoidCallback onTap})>[
     (
+      icon: Icons.add_box_outlined,
+      title: '发布投稿',
+      onTap: () {
+        if (isLogin) {
+          Get.toNamed(
+            '/webview',
+            parameters: {
+              'url': 'https://member.bilibili.com/platform/upload/video/frame',
+              'uaType': 'pc',
+            },
+          );
+        }
+      },
+    ),
+    (
       icon: CustomIcons.folderDownloadOutline,
       title: '离线缓存',
       onTap: () => Get.toNamed('/download'),
