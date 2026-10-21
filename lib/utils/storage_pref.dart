@@ -1077,7 +1077,7 @@ abstract final class Pref {
       _setting.get(SettingBoxKey.angleDegrees, defaultValue: 30);
 
   static double get playerVolume => // mobile
-      _setting.get(SettingBoxKey.playerVolume, defaultValue: 0.0);
+      _setting.get(SettingBoxKey.playerVolume, defaultValue: 161.0);
 
   static double get maxVolume => // desktop
       _setting.get(SettingBoxKey.maxVolume, defaultValue: 2.0);

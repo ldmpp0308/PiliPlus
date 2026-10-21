@@ -176,7 +176,7 @@ Commit Hash: ${BuildConfig.commitHash}''',
             onTap: () => PageUtils.launchURL(Constants.sourceCodeUrl),
             leading: const Icon(Icons.code),
             title: const Text('Source Code'),
-            subtitle: Text(Constants.sourceCodeUrl, style: subTitleStyle),
+            subtitle: Text('查看项目主页', style: subTitleStyle),
           ),
           if (Platform.isAndroid)
             ListTile(

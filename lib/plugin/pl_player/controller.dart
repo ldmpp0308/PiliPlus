@@ -845,6 +845,8 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     final opt = {
       'video-sync': Pref.videoSync,
       if (Platform.isAndroid) 'ao': Pref.audioOutput,
+      // 放开 mpv 音量上限，默认音量可高于 100%
+      if (PlatformUtils.isMobile) 'volume-max': '300',
       'volume':
           (PlatformUtils.isMobile ? Pref.playerVolume : volume.value * 100)
               .toString(),

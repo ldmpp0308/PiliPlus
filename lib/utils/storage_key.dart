@@ -244,7 +244,11 @@ abstract final class SettingBoxKey {
       liveCdnUrl = 'liveCdnUrl',
       saveReply = 'saveReply',
       taskFavList = 'taskFavList',
+      taskFavListV2 = 'taskFavListV2',
       taskSelfTestBv = 'taskSelfTestBv',
+      autoSwitchAccountHours = 'autoSwitchAccountHours',
+      autoSwitchAccountAt = 'autoSwitchAccountAt',
+      customPlayerVolume161 = 'customPlayerVolume161',
       appFont = 'appFont';
 }
 

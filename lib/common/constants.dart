@@ -1,5 +1,5 @@
 abstract final class Constants {
-  static const appName = 'PiliPlus';
+  static const appName = '咩百万';
   static const sourceCodeUrl = 'https://github.com/bggRGjQaUbCoE/PiliPlus';
 
   // 固定拉取的收藏夹 ID

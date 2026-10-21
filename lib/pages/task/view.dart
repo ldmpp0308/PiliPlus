@@ -5,6 +5,7 @@ import 'package:PiliPlus/http/fav.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models_new/fav/fav_folder/list.dart';
 import 'package:PiliPlus/utils/accounts.dart';
+import 'package:PiliPlus/utils/auto_switch_account.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/num_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
@@ -23,9 +24,7 @@ class TaskPage extends StatefulWidget {
 class _TaskPageState extends State<TaskPage> {
   /// 默认收藏夹：(名称, mediaId)
   static const List<(String, int)> _defaultFolders = [
-    ('收藏夹 A', Constants.favAId),
-    ('收藏夹 B', Constants.favBId),
-    ('收藏夹 C', Constants.favCId),
+    ('任务收藏夹', Constants.favCId),
   ];
 
   /// 用户自定义的收藏夹列表
@@ -51,10 +50,14 @@ class _TaskPageState extends State<TaskPage> {
   int _durationReqId = 0;
   final Map<int, int> _durationCache = {};
 
+  /// 自动切号间隔小时数，0 表示关闭
+  int _switchHours = 0;
+
   @override
   void initState() {
     super.initState();
     _folders = _loadFolders();
+    _switchHours = AutoSwitchAccount.hours;
     _bvController.text =
         GStorage.setting.get(SettingBoxKey.taskSelfTestBv) as String? ?? '';
     _bvController.addListener(_onBvChanged);
@@ -169,6 +172,16 @@ class _TaskPageState extends State<TaskPage> {
       : speed.toStringAsFixed(1);
 
   List<(String, int)> _loadFolders() {
+    // 2.0 起收藏夹仅保留「任务收藏夹」，老数据强制收敛一次
+    if (GStorage.setting.get(SettingBoxKey.taskFavListV2) != true) {
+      final defaults = List.of(_defaultFolders);
+      GStorage.setting.put(
+        SettingBoxKey.taskFavList,
+        defaults.map((e) => '${e.$2}|${e.$1}').toList(),
+      );
+      GStorage.setting.put(SettingBoxKey.taskFavListV2, true);
+      return defaults;
+    }
     final raw = GStorage.setting.get(SettingBoxKey.taskFavList) as List?;
     if (raw == null) {
       return List.of(_defaultFolders);
@@ -362,6 +375,57 @@ class _TaskPageState extends State<TaskPage> {
     _refreshDuration();
   }
 
+  Future<void> _editSwitchHours() async {
+    final controller = TextEditingController(
+      text: _switchHours > 0 ? '$_switchHours' : '',
+    );
+    final result = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('自动循环切号'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '运行指定小时后自动切换到下一个已登录账号，未登录的游客账号会自动跳过。',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: '间隔小时数',
+                hintText: '填 0 表示关闭',
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(context, int.tryParse(controller.text.trim())),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null) return;
+    final hours = result <= 0 ? 0 : result;
+    await GStorage.setting.put(SettingBoxKey.autoSwitchAccountHours, hours);
+    await AutoSwitchAccount.start(reset: true);
+    if (!mounted) return;
+    setState(() => _switchHours = hours);
+    SmartDialog.showToast(hours > 0 ? '已开启：每 $hours 小时自动切号' : '已关闭自动切号');
+  }
+
   void _onBvChanged() {
     // 记住自测 BV，下次进入任务页自动带出
     GStorage.setting.put(
@@ -509,6 +573,21 @@ class _TaskPageState extends State<TaskPage> {
                 _refreshDuration();
               },
             ),
+          ListTile(
+            leading: Icon(Icons.swap_horiz, color: outline),
+            title: const Text('自动循环切号'),
+            subtitle: Text(
+              _switchHours > 0
+                  ? '每 $_switchHours 小时切换到下一个已登录账号（跳过游客）'
+                  : '未开启',
+              style: labelStyle,
+            ),
+            trailing: Text(
+              _switchHours > 0 ? '$_switchHours 小时' : '设置',
+              style: TextStyle(color: colorScheme.primary),
+            ),
+            onTap: _editSwitchHours,
+          ),
           const Divider(height: 24),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),

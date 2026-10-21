@@ -16,6 +16,7 @@ import 'package:PiliPlus/services/account_service.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
 import 'package:PiliPlus/services/logger.dart';
 import 'package:PiliPlus/services/service_locator.dart';
+import 'package:PiliPlus/utils/auto_switch_account.dart';
 import 'package:PiliPlus/utils/cache_manager.dart';
 import 'package:PiliPlus/utils/date_utils.dart';
 import 'package:PiliPlus/utils/desktop/calc_window_position.dart';
@@ -107,6 +108,15 @@ Future<void> _applyCustomPlayerDefaults() async {
   await GStorage.setting.put(SettingBoxKey.customPlayerDefaultsV1, true);
 }
 
+/// 一次性把默认音量写入 161%（升级安装后也生效）
+Future<void> _applyCustomVolume() async {
+  if (GStorage.setting.get(SettingBoxKey.customPlayerVolume161) == true) {
+    return;
+  }
+  await GStorage.setting.put(SettingBoxKey.playerVolume, 161.0);
+  await GStorage.setting.put(SettingBoxKey.customPlayerVolume161, true);
+}
+
 void main() async {
   ScaledWidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
@@ -120,6 +130,8 @@ void main() async {
   }
   ScaledWidgetsFlutterBinding.instance.scaleFactor = Pref.uiScale;
   await _applyCustomPlayerDefaults();
+  await _applyCustomVolume();
+  await AutoSwitchAccount.start();
   await Future.wait([
     _initDownPath(),
     _initTmpPath(),

@@ -483,6 +483,8 @@ class AudioController extends GetxController
       configuration: PlayerConfiguration(
         options: {
           if (Platform.isAndroid) 'ao': Pref.audioOutput,
+          // 放开 mpv 音量上限，默认音量可高于 100%
+          if (PlatformUtils.isMobile) 'volume-max': '300',
           'volume': PlatformUtils.isDesktop
               ? (desktopVolume.value * 100).toString()
               : Pref.playerVolume.toString(),
