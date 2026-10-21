@@ -422,12 +422,20 @@ class _TaskPageState extends State<TaskPage> {
     final hours = result <= 0 ? 0 : result;
     await GStorage.setting.put(SettingBoxKey.autoSwitchAccountHours, hours);
     await AutoSwitchAccount.start(reset: true);
+    // 自动切号与定时关闭互斥：开启自动切号后取消定时关闭
+    if (hours > 0) {
+      shutdownTimerService.reset();
+    }
     if (!mounted) return;
     setState(() => _switchHours = hours);
     SmartDialog.showToast(hours > 0 ? '已开启：每 $hours 小时自动切号' : '已关闭自动切号');
   }
 
   Future<void> _editShutdown() async {
+    if (_switchHours > 0) {
+      SmartDialog.showToast('已开启自动切号，定时关闭不可用');
+      return;
+    }
     const options = [0, 60, 120, 180, 240, 300];
     var type = shutdownTimerService.shutdownType;
     var selected = shutdownTimerService.durationInMinutes;
@@ -662,17 +670,23 @@ class _TaskPageState extends State<TaskPage> {
             leading: Icon(Icons.timer_outlined, color: outline),
             title: const Text('定时关闭'),
             subtitle: Text(
-              shutdownTimerService.durationInMinutes > 0
+              _switchHours > 0
+                  ? '已开启自动切号，暂不可用'
+                  : shutdownTimerService.durationInMinutes > 0
                   ? '${shutdownTimerService.durationInMinutes ~/ 60} 小时后'
                         '${shutdownTimerService.shutdownType.label}'
                   : '未开启',
               style: labelStyle,
             ),
             trailing: Text(
-              shutdownTimerService.durationInMinutes > 0
+              _switchHours > 0
+                  ? '不可用'
+                  : shutdownTimerService.durationInMinutes > 0
                   ? '${shutdownTimerService.durationInMinutes ~/ 60} 小时'
                   : '设置',
-              style: TextStyle(color: colorScheme.primary),
+              style: TextStyle(
+                color: _switchHours > 0 ? outline : colorScheme.primary,
+              ),
             ),
             onTap: _editShutdown,
           ),

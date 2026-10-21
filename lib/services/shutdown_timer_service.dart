@@ -5,6 +5,7 @@ import 'dart:async' show Timer;
 import 'package:PiliPlus/models/common/enum_with_label.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/widgets/menu_row.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
+import 'package:PiliPlus/utils/auto_switch_account.dart';
 import 'package:PiliPlus/utils/device_utils.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
@@ -77,6 +78,12 @@ class ShutdownTimerService {
     reset(durationInMinutes);
     if (durationInMinutes == 0) {
       SmartDialog.showToast('取消定时关闭');
+      return;
+    }
+    // 自动切号为长时间运行模式，开启后定时关闭不再生效
+    if (AutoSwitchAccount.hours > 0) {
+      reset();
+      SmartDialog.showToast('已开启自动切号，定时关闭不可用');
       return;
     }
     SmartDialog.showToast('设置 ${_format(durationInMinutes)} 后定时关闭');

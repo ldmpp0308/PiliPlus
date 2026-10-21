@@ -1755,7 +1755,6 @@ class _TaskCountdownText extends StatefulWidget {
 class _TaskCountdownTextState extends State<_TaskCountdownText> {
   Timer? _timer;
   String? _text;
-  int _ticks = 0;
 
   @override
   void initState() {
@@ -1787,16 +1786,10 @@ class _TaskCountdownTextState extends State<_TaskCountdownText> {
   }
 
   void _update() {
-    final shutdownText = _remainingText(shutdownTimerService.deadline, '剩余');
-    final switchText = _remainingText(AutoSwitchAccount.deadline, '切号剩余');
-    final String? text;
-    if (shutdownText != null && switchText != null) {
-      // 两者同时存在时每 5 秒轮流显示
-      text = (_ticks ~/ 5).isEven ? shutdownText : switchText;
-    } else {
-      text = shutdownText ?? switchText;
-    }
-    _ticks++;
+    // 两者互斥：开启自动切号后定时关闭会被取消
+    final text =
+        _remainingText(AutoSwitchAccount.deadline, '切号剩余') ??
+        _remainingText(shutdownTimerService.deadline, '剩余');
     if (text != _text && mounted) {
       setState(() => _text = text);
     }
