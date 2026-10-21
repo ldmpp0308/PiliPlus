@@ -44,6 +44,7 @@ import 'package:PiliPlus/services/shutdown_timer_service.dart'
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
 import 'package:PiliPlus/utils/android/android_helper.dart';
+import 'package:PiliPlus/utils/auto_switch_account.dart';
 import 'package:PiliPlus/utils/connectivity_utils.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/string_ext.dart';
@@ -1523,6 +1524,7 @@ class HeaderControlState extends State<HeaderControl>
                           )
                         : const SizedBox.shrink(),
                   ),
+                const _TaskCountdownText(),
                 if (!isPortrait || isFullScreen || PlatformUtils.isDesktop) ...[
                   SizedBox(
                     width: btnWidth,
@@ -1741,3 +1743,76 @@ class HeaderControlState extends State<HeaderControl>
     );
   }
 }
+
+/// 播放器顶部任务倒计时：定时关闭 / 自动切号
+class _TaskCountdownText extends StatefulWidget {
+  const _TaskCountdownText();
+
+  @override
+  State<_TaskCountdownText> createState() => _TaskCountdownTextState();
+}
+
+class _TaskCountdownTextState extends State<_TaskCountdownText> {
+  Timer? _timer;
+  String? _text;
+  int _ticks = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _update();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _update());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  static String _format(Duration duration) {
+    final h = duration.inHours;
+    final m = duration.inMinutes % 60;
+    final s = duration.inSeconds % 60;
+    return '${h.toString().padLeft(2, '0')}:'
+        '${m.toString().padLeft(2, '0')}:'
+        '${s.toString().padLeft(2, '0')}';
+  }
+
+  static String? _remainingText(DateTime? deadline, String prefix) {
+    if (deadline == null) return null;
+    final remaining = deadline.difference(DateTime.now());
+    if (remaining <= Duration.zero) return null;
+    return '$prefix${_format(remaining)}';
+  }
+
+  void _update() {
+    final shutdownText = _remainingText(shutdownTimerService.deadline, '剩余');
+    final switchText = _remainingText(AutoSwitchAccount.deadline, '切号剩余');
+    final String? text;
+    if (shutdownText != null && switchText != null) {
+      // 两者同时存在时每 5 秒轮流显示
+      text = (_ticks ~/ 5).isEven ? shutdownText : switchText;
+    } else {
+      text = shutdownText ?? switchText;
+    }
+    _ticks++;
+    if (text != _text && mounted) {
+      setState(() => _text = text);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = _text;
+    if (text == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Text(
+        text,
+        style: const TextStyle(color: Colors.white, fontSize: 12),
+      ),
+    );
+  }
+}
+

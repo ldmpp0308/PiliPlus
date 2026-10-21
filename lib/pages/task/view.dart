@@ -4,6 +4,7 @@ import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/http/fav.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models_new/fav/fav_folder/list.dart';
+import 'package:PiliPlus/services/shutdown_timer_service.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/auto_switch_account.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
@@ -426,6 +427,90 @@ class _TaskPageState extends State<TaskPage> {
     SmartDialog.showToast(hours > 0 ? '已开启：每 $hours 小时自动切号' : '已关闭自动切号');
   }
 
+  Future<void> _editShutdown() async {
+    const options = [0, 60, 120, 180, 240, 300];
+    var type = shutdownTimerService.shutdownType;
+    var selected = shutdownTimerService.durationInMinutes;
+    final result = await showDialog<int>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final colorScheme = ColorScheme.of(context);
+          return AlertDialog(
+            title: const Text('定时关闭'),
+            contentPadding: const EdgeInsets.only(top: 12),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Text(
+                      '到点后可选择暂停视频或退出APP。',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colorScheme.outline,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  for (final minutes in options)
+                    ListTile(
+                      dense: true,
+                      onTap: () =>
+                          setDialogState(() => selected = minutes),
+                      title: Text(minutes == 0 ? '关闭' : '${minutes ~/ 60} 小时'),
+                      trailing: selected == minutes
+                          ? Icon(
+                              size: 20,
+                              Icons.done,
+                              color: colorScheme.primary,
+                            )
+                          : null,
+                    ),
+                  const Divider(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+                    child: Wrap(
+                      spacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        const Text('到点动作', style: TextStyle(fontSize: 13)),
+                        ...ShutdownType.values.map(
+                          (e) => ChoiceChip(
+                            label: Text(e.label),
+                            selected: type == e,
+                            onSelected: (_) =>
+                                setDialogState(() => type = e),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, selected),
+                child: const Text('确定'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (result == null) return;
+    shutdownTimerService.startShutdown(result, type: type);
+    if (!mounted) return;
+    setState(() {});
+  }
+
   void _onBvChanged() {
     // 记住自测 BV，下次进入任务页自动带出
     GStorage.setting.put(
@@ -573,6 +658,24 @@ class _TaskPageState extends State<TaskPage> {
                 _refreshDuration();
               },
             ),
+          ListTile(
+            leading: Icon(Icons.timer_outlined, color: outline),
+            title: const Text('定时关闭'),
+            subtitle: Text(
+              shutdownTimerService.durationInMinutes > 0
+                  ? '${shutdownTimerService.durationInMinutes ~/ 60} 小时后'
+                        '${shutdownTimerService.shutdownType.label}'
+                  : '未开启',
+              style: labelStyle,
+            ),
+            trailing: Text(
+              shutdownTimerService.durationInMinutes > 0
+                  ? '${shutdownTimerService.durationInMinutes ~/ 60} 小时'
+                  : '设置',
+              style: TextStyle(color: colorScheme.primary),
+            ),
+            onTap: _editShutdown,
+          ),
           ListTile(
             leading: Icon(Icons.swap_horiz, color: outline),
             title: const Text('自动循环切号'),

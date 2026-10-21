@@ -19,6 +19,18 @@ abstract final class AutoSwitchAccount {
           ?.toInt() ??
       0;
 
+  /// 下一次自动切号的时间，未开启时返回 null
+  static DateTime? get deadline {
+    final h = hours;
+    if (h <= 0) return null;
+    final last =
+        GStorage.setting.get(SettingBoxKey.autoSwitchAccountAt) as int?;
+    if (last == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(
+      last + h * Duration.millisecondsPerHour,
+    );
+  }
+
   /// 可切换的账号（排除账号 0 游客，按 mid 排序保证顺序稳定）
   static List<LoginAccount> get candidates =>
       Accounts.account.values.where((e) => e.isLogin && e.mid != 0).toList()

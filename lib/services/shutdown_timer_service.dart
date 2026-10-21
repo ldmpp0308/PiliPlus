@@ -19,14 +19,14 @@ import 'package:material_ui/material_ui.dart';
 const _kSqueeze = 1.25;
 const _kItemExtent = 38.0;
 
-enum _ShutdownType with EnumWithLabel {
+enum ShutdownType with EnumWithLabel {
   pause('暂停视频'),
   exit('退出APP'),
   ;
 
   @override
   final String label;
-  const _ShutdownType(this.label);
+  const ShutdownType(this.label);
 }
 
 final shutdownTimerService = ShutdownTimerService._internal();
@@ -42,7 +42,18 @@ class ShutdownTimerService {
   Timer? _shutdownTimer;
   bool get isActive => _shutdownTimer?.isActive ?? false;
   int _durationInMinutes = 0;
-  _ShutdownType _shutdownType = .pause;
+  ShutdownType _shutdownType = .pause;
+
+  ShutdownType get shutdownType => _shutdownType;
+  set shutdownType(ShutdownType value) => _shutdownType = value;
+
+  int get durationInMinutes => _durationInMinutes;
+
+  /// 供任务页等外部入口设定定时关闭
+  void startShutdown(int durationInMinutes, {ShutdownType? type}) {
+    if (type != null) _shutdownType = type;
+    _startShutdownTimer(durationInMinutes);
+  }
 
   bool _isWaiting = false;
   bool get isWaiting => _isWaiting;
@@ -330,7 +341,7 @@ class ShutdownTimerService {
                         spacing: 12,
                         children: [
                           const Text('倒计时结束:', style: titleStyle),
-                          ..._ShutdownType.values.map(
+                          ...ShutdownType.values.map(
                             (e) => ActionRowLineItem(
                               onTap: () {
                                 _shutdownType = e;
