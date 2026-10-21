@@ -241,14 +241,21 @@ class _SettingPageState extends State<SettingPage> {
     }
   }
 
+  static String _accountName(LoginAccount account) {
+    final uname = account.uname;
+    return uname == null || uname.isEmpty ? account.mid.toString() : uname;
+  }
+
   Future<void> _logoutDialog(BuildContext context) async {
+    await LoginPageController.fillAccountName();
+    if (!context.mounted) return;
     final result = await showDialog<Set<LoginAccount>>(
       context: context,
       builder: (context) => MultiSelectDialog<LoginAccount>(
-        title: '选择要登出的账号uid',
+        title: '选择要登出的账号',
         initValues: const Iterable.empty(),
         values: {
-          for (final i in Accounts.account.values) i: i.mid.toString(),
+          for (final i in Accounts.account.values) i: _accountName(i),
         },
       ),
     );
@@ -260,7 +267,7 @@ class _SettingPageState extends State<SettingPage> {
         return AlertDialog(
           title: const Text('提示'),
           content: Text(
-            "确认要退出以下账号登录吗\n\n${result.map((i) => i.mid).join('\n')}",
+            "确认要退出以下账号登录吗\n\n${result.map(_accountName).join('\n')}",
           ),
           actions: [
             TextButton(
@@ -294,7 +301,7 @@ class _SettingPageState extends State<SettingPage> {
                   if (logoutAccounts.length != result.length) {
                     result.removeWhere(logoutAccounts.contains);
                     SmartDialog.showToast(
-                      '账号 ${result.map((i) => i.mid).join(",")} 退出登录失败',
+                      '账号 ${result.map(_accountName).join(",")} 退出登录失败',
                     );
                   }
                 }

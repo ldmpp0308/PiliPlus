@@ -639,13 +639,8 @@ class LoginPageController extends GetxController
     }
   }
 
-  static Future<void> switchAccountDialog(BuildContext context) async {
-    if (Accounts.account.isEmpty) {
-      SmartDialog.showToast('请先登录');
-      Get.toNamed('/loginPage');
-      return;
-    }
-    // 补全账号昵称（老数据无昵称时懒加载并持久化）
+  /// 补全账号昵称（老数据无昵称时懒加载并持久化）
+  static Future<void> fillAccountName() async {
     await Future.wait(
       Accounts.account.values
           .where((e) => e.uname?.isNotEmpty != true)
@@ -663,6 +658,15 @@ class LoginPageController extends GetxController
             } catch (_) {}
           }),
     );
+  }
+
+  static Future<void> switchAccountDialog(BuildContext context) async {
+    if (Accounts.account.isEmpty) {
+      SmartDialog.showToast('请先登录');
+      Get.toNamed('/loginPage');
+      return;
+    }
+    await fillAccountName();
     if (!context.mounted) return;
     final colorScheme = ColorScheme.of(context);
     final selectAccount = List.of(Accounts.accountMode);
