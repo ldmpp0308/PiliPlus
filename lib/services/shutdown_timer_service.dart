@@ -38,6 +38,9 @@ class ShutdownTimerService {
   VoidCallback? onPause;
   ValueGetter<bool>? isPlaying;
 
+  /// 定时关闭默认时长（5 小时）
+  static const int defaultDurationInMinutes = 300;
+
   DateTime? _deadline;
   DateTime? get deadline => _deadline;
   Timer? _shutdownTimer;
@@ -154,7 +157,6 @@ class ShutdownTimerService {
       (minutes ~/ 60, minutes % 60);
 
   static String _format(int minutes) {
-    if (minutes == 60) return '60分钟';
     final (int hour, int minute) = _parseMinutes(minutes);
     if (hour > 0 && minute > 0) {
       return '$hour小时$minute分钟';
@@ -165,66 +167,44 @@ class ShutdownTimerService {
     }
   }
 
-  Widget _pickerBuider(
-    int count, {
-    required ValueChanged<int> onSelectedItemChanged,
-    required FixedExtentScrollController scrollController,
+  /// 自定义小时数选择（单位：小时），返回分钟数
+  static Future<int?> showCustomHoursDialog(
+    BuildContext context, {
+    int initialMinutes = 0,
   }) {
-    return CupertinoPicker(
-      // looping: true,
-      squeeze: _kSqueeze,
-      itemExtent: _kItemExtent,
-      scrollController: scrollController,
-      onSelectedItemChanged: onSelectedItemChanged,
-      children: List.generate(
-        count,
-        (index) => Center(
-          child: Text(
-            index.toString().padLeft(2, '0'),
-            style: const TextStyle(fontSize: 20, letterSpacing: .4),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showTimePickerDialog(
-    BuildContext context,
-    VoidCallback onCountdown,
-    StateSetter setState,
-  ) {
-    final values = _parseMinutes(_durationInMinutes);
-    var hour = values.$1;
-    var minute = values.$2;
-
-    final hourController = FixedExtentScrollController(initialItem: hour);
-    final minuteController = FixedExtentScrollController(initialItem: minute);
-
-    showDialog(
+    var hour =
+        (initialMinutes > 0
+                ? initialMinutes ~/ 60
+                : defaultDurationInMinutes ~/ 60)
+            .clamp(1, 24)
+            .toInt();
+    final controller = FixedExtentScrollController(initialItem: hour - 1);
+    return showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
         contentPadding: const .fromLTRB(20, 6, 20, 0),
         actionsPadding: const .fromLTRB(20, 0, 20, 16),
-        constraints: const .tightFor(width: 320, height: 320),
+        constraints: const .tightFor(width: 260, height: 320),
         content: Row(
           children: [
             Expanded(
-              child: _pickerBuider(
-                25,
-                scrollController: hourController,
-                onSelectedItemChanged: (value) => hour = value,
+              child: CupertinoPicker(
+                squeeze: _kSqueeze,
+                itemExtent: _kItemExtent,
+                scrollController: controller,
+                onSelectedItemChanged: (value) => hour = value + 1,
+                children: List.generate(
+                  24,
+                  (index) => Center(
+                    child: Text(
+                      '${index + 1}',
+                      style: const TextStyle(fontSize: 20, letterSpacing: .4),
+                    ),
+                  ),
+                ),
               ),
             ),
-            const Text('时'),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _pickerBuider(
-                60,
-                scrollController: minuteController,
-                onSelectedItemChanged: (value) => minute = value,
-              ),
-            ),
-            const Text('分'),
+            const Text('小时'),
           ],
         ),
         actions: [
@@ -236,20 +216,27 @@ class ShutdownTimerService {
             ),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _startShutdownTimer(hour * 60 + minute);
-              onCountdown();
-              setState(() {});
-            },
+            onPressed: () => Navigator.pop(context, hour * 60),
             child: const Text('确认'),
           ),
         ],
       ),
-    ).whenComplete(() {
-      hourController.dispose();
-      minuteController.dispose();
-    });
+    ).whenComplete(controller.dispose);
+  }
+
+  Future<void> _showTimePickerDialog(
+    BuildContext context,
+    VoidCallback onCountdown,
+    StateSetter setState,
+  ) async {
+    final minutes = await showCustomHoursDialog(
+      context,
+      initialMinutes: _durationInMinutes,
+    );
+    if (minutes == null) return;
+    _startShutdownTimer(minutes);
+    onCountdown();
+    setState(() {});
   }
 
   void showScheduleExitDialog(
@@ -257,7 +244,7 @@ class ShutdownTimerService {
     required bool isFullScreen,
     bool isLive = false,
   }) {
-    const Set<int> scheduleTimeMinutes = {0, 15, 30, 45, 60};
+    const Set<int> scheduleTimeMinutes = {0, 60, 120, 180, 240, 300};
     const TextStyle titleStyle = TextStyle(fontSize: 14);
     if (isLive) {
       _waitUntilCompleted = false;

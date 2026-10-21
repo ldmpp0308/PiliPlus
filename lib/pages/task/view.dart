@@ -438,7 +438,10 @@ class _TaskPageState extends State<TaskPage> {
     }
     const options = [0, 60, 120, 180, 240, 300];
     var type = shutdownTimerService.shutdownType;
-    var selected = shutdownTimerService.durationInMinutes;
+    // 默认 5 小时
+    var selected = shutdownTimerService.durationInMinutes > 0
+        ? shutdownTimerService.durationInMinutes
+        : ShutdownTimerService.defaultDurationInMinutes;
     final result = await showDialog<int>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -477,6 +480,30 @@ class _TaskPageState extends State<TaskPage> {
                             )
                           : null,
                     ),
+                  ListTile(
+                    dense: true,
+                    onTap: () async {
+                      final custom =
+                          await ShutdownTimerService.showCustomHoursDialog(
+                            context,
+                            initialMinutes: selected,
+                          );
+                      if (custom == null || !context.mounted) return;
+                      setDialogState(() => selected = custom);
+                    },
+                    title: Text(
+                      options.contains(selected)
+                          ? '自定义'
+                          : '自定义（${selected ~/ 60} 小时）',
+                    ),
+                    trailing: options.contains(selected)
+                        ? null
+                        : Icon(
+                            size: 20,
+                            Icons.done,
+                            color: colorScheme.primary,
+                          ),
+                  ),
                   const Divider(),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
