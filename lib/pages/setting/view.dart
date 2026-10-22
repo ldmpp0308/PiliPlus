@@ -243,7 +243,10 @@ class _SettingPageState extends State<SettingPage> {
 
   static String _accountName(LoginAccount account) {
     final uname = account.uname;
-    return uname == null || uname.isEmpty ? account.mid.toString() : uname;
+    final name = uname == null || uname.isEmpty
+        ? account.mid.toString()
+        : uname;
+    return Accounts.isInvalid(account) ? '$name（已失效）' : name;
   }
 
   Future<void> _logoutDialog(BuildContext context) async {

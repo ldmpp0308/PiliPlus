@@ -170,7 +170,7 @@ class LoginPageController extends GetxController
       );
       if (result.data['code'] == 0) {
         try {
-          await LoginAccount(
+          final account = LoginAccount(
             BiliCookieJar.fromJson(
               Map.fromEntries(
                 cookieTextController.text.split(';').map((item) {
@@ -181,7 +181,9 @@ class LoginPageController extends GetxController
             ),
             null,
             null,
-          ).onChange();
+          );
+          await account.onChange();
+          await Accounts.clearInvalid(account.mid);
           if (!Accounts.main.isLogin) await switchAccountDialog(Get.context!);
           SmartDialog.showToast('登录成功');
           Get.back();
@@ -626,6 +628,7 @@ class LoginPageController extends GetxController
       tokenInfo['refresh_token'],
     );
     await Future.wait([?account.onChange(), AnonymousAccount().delete()]);
+    await Accounts.clearInvalid(account.mid);
     for (int i = 0; i < AccountType.values.length; i++) {
       if (Accounts.accountMode[i].mid == account.mid) {
         Accounts.accountMode[i] = account;
@@ -672,9 +675,10 @@ class LoginPageController extends GetxController
     final selectAccount = List.of(Accounts.accountMode);
     final options = {
       AnonymousAccount(): '0',
-      ...Accounts.account.toMap().map(
-        (k, v) => MapEntry(v, v.uname ?? (k as String)),
-      ),
+      ...Accounts.account.toMap().map((k, v) {
+        final name = v.uname ?? (k as String);
+        return MapEntry(v, Accounts.isInvalid(v) ? '$name（已失效）' : name);
+      }),
     };
     bool quickSelect = selectAccount.every((e) => e == selectAccount.first);
     return showDialog(

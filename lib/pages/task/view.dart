@@ -61,6 +61,8 @@ class _TaskPageState extends State<TaskPage> {
   void initState() {
     super.initState();
     _folders = _loadFolders();
+    _folderEntryVisible =
+        GStorage.setting.get(SettingBoxKey.taskFavManageUnlocked) == true;
     _switchHours = AutoSwitchAccount.hours;
     _bvController.text =
         GStorage.setting.get(SettingBoxKey.taskSelfTestBv) as String? ?? '';
@@ -88,6 +90,8 @@ class _TaskPageState extends State<TaskPage> {
     if (_folderTapCount >= 6) {
       _folderTapCount = 0;
       setState(() => _folderEntryVisible = true);
+      GStorage.setting.put(SettingBoxKey.taskFavManageUnlocked, true);
+      SmartDialog.showToast('收藏夹管理已解锁');
       return;
     }
     _folderTapTimer = Timer(const Duration(seconds: 2), () {

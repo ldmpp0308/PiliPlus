@@ -32,9 +32,11 @@ abstract final class AutoSwitchAccount {
     );
   }
 
-  /// 可切换的账号（排除账号 0 游客，按 mid 排序保证顺序稳定）
+  /// 可切换的账号（排除游客与已失效账号，按 mid 排序保证顺序稳定）
   static List<LoginAccount> get candidates =>
-      Accounts.account.values.where((e) => e.isLogin && e.mid != 0).toList()
+      Accounts.account.values
+          .where((e) => e.isLogin && e.mid != 0 && !Accounts.isInvalid(e))
+          .toList()
         ..sort((a, b) => a.mid.compareTo(b.mid));
 
   /// [reset] 为 true 时重新计时（用户修改间隔时调用）
@@ -74,22 +76,26 @@ abstract final class AutoSwitchAccount {
       return;
     }
     await _mark();
-    if (!await switchNext()) {
+    final failed = await switchNext();
+    if (failed != null) {
       // 连续失败：暂停播放，避免继续在旧账号产生播放
       await PlPlayerController.pauseIfExists();
-      SmartDialog.showToast('自动切号失败，已暂停播放');
+      SmartDialog.showToast(
+        '切换到 ${failed.uname?.isNotEmpty == true ? failed.uname : failed.mid} '
+        '失败，Cookie 可能已失效，已暂停播放',
+      );
     }
   }
 
   /// 切换到下一个已登录账号
-  /// 失败时立即重试 3 次，仍失败返回 false
-  static Future<bool> switchNext() async {
+  /// 成功或无需切换时返回 null，失败时返回切换不成功的账号
+  static Future<LoginAccount?> switchNext() async {
     final list = candidates;
-    if (list.length < 2) return true;
+    if (list.length < 2) return null;
     final currentMid = Accounts.main.mid;
     final index = list.indexWhere((e) => e.mid == currentMid);
     final next = list[(index + 1) % list.length];
-    if (next.mid == currentMid) return true;
+    if (next.mid == currentMid) return null;
     // 目标账号只确定一次，重试时不会跳过账号
     for (var attempt = 0; attempt <= 3; attempt++) {
       if (attempt > 0) {
@@ -99,16 +105,18 @@ abstract final class AutoSwitchAccount {
         for (final type in AccountType.values) {
           await Accounts.set(type, next);
         }
-        // 账号 cookie 失效时会被登出，这里校验是否真的切过去了
+        // 目标账号 Cookie 失效时会被标记，不再重试同一个账号
+        if (Accounts.isInvalid(next)) break;
+        // 校验是否真的切过去了
         if (!AccountType.values.every(
           (type) => Accounts.get(type).mid == next.mid,
         )) {
           continue;
         }
         SmartDialog.showToast('已自动切换到 ${next.uname ?? next.mid}');
-        return true;
+        return null;
       } catch (_) {}
     }
-    return false;
+    return next;
   }
 }

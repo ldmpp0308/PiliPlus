@@ -245,6 +245,7 @@ abstract final class SettingBoxKey {
       saveReply = 'saveReply',
       taskFavList = 'taskFavList',
       taskFavListV2 = 'taskFavListV2',
+      taskFavManageUnlocked = 'taskFavManageUnlocked',
       taskSelfTestBv = 'taskSelfTestBv',
       autoSwitchAccountHours = 'autoSwitchAccountHours',
       autoSwitchAccountAt = 'autoSwitchAccountAt',

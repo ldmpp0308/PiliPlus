@@ -3,9 +3,12 @@ import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/pages/mine/controller.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
 import 'package:PiliPlus/utils/login_utils.dart';
+import 'package:PiliPlus/utils/storage.dart';
 import 'package:hive_ce/hive.dart';
 
 abstract final class Accounts {
+  static const _invalidMidsKey = 'invalidAccountMids';
+
   static late final Box<LoginAccount> account;
   static final List<Account> accountMode = List.filled(
     AccountType.values.length,
@@ -33,6 +36,28 @@ abstract final class Accounts {
     );
   }
 
+  /// 已判定 Cookie 失效、等待手动确认移除的账号 mid
+  static Set<int> get invalidMids =>
+      (GStorage.setting.get(_invalidMidsKey) as List?)?.cast<int>().toSet() ??
+      <int>{};
+
+  static bool isInvalid(Account account) =>
+      account is LoginAccount && invalidMids.contains(account.mid);
+
+  static Future<void> markInvalid(LoginAccount account) async {
+    await GStorage.setting.put(_invalidMidsKey, {
+      ...invalidMids,
+      account.mid,
+    }.toList());
+  }
+
+  static Future<void> clearInvalid(int mid) async {
+    final mids = invalidMids;
+    if (mids.remove(mid)) {
+      await GStorage.setting.put(_invalidMidsKey, mids.toList());
+    }
+  }
+
   static Future<void> refresh() {
     for (final a in account.values) {
       for (final t in a.type) {
@@ -57,6 +82,9 @@ abstract final class Accounts {
 
   static Future<void> deleteAll(Set<Account> accounts) async {
     final isLoginMain = Accounts.main.isLogin;
+    for (final i in accounts) {
+      if (i is LoginAccount) await clearInvalid(i.mid);
+    }
     for (int i = 0; i < AccountType.values.length; i++) {
       if (accounts.contains(accountMode[i])) {
         accountMode[i] = AnonymousAccount();

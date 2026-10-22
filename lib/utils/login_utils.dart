@@ -67,9 +67,17 @@ abstract final class LoginUtils {
       // 获取用户信息失败
       final errMsg = res.toString();
       if (errMsg == '账号未登录') {
-        await Accounts.deleteAll({account});
+        // 只标记失效，不自动删除，等用户手动确认
+        final name = account is LoginAccount
+            ? (account.uname?.isNotEmpty == true
+                  ? account.uname
+                  : account.mid)
+            : account.mid;
+        if (account is LoginAccount) {
+          await Accounts.markInvalid(account);
+        }
         SmartDialog.showNotify(
-          msg: '登录失败，请检查cookie是否正确，$errMsg',
+          msg: '账号 $name 的 Cookie 已失效，已标记但未删除，请到设置-退出登录 手动移除',
           notifyType: .warning,
         );
       } else {
