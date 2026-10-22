@@ -28,6 +28,9 @@ class _TaskPageState extends State<TaskPage> {
     ('任务收藏夹', Constants.favCId),
   ];
 
+  /// 旧的任务收藏夹 ID，用于迁移老数据
+  static const int _oldFavCId = 3940948099;
+
   /// 用户自定义的收藏夹列表
   List<(String, int)> _folders = const [];
 
@@ -196,7 +199,22 @@ class _TaskPageState extends State<TaskPage> {
       if (mediaId == null) continue;
       list.add((item.substring(index + 1), mediaId));
     }
-    return list;
+    // 任务收藏夹 ID 变更：老数据迁移为新 ID，保留自定义收藏夹
+    var migrated = false;
+    final migratedList = list.map((e) {
+      if (e.$2 == _oldFavCId) {
+        migrated = true;
+        return (e.$1, Constants.favCId);
+      }
+      return e;
+    }).toList();
+    if (migrated) {
+      GStorage.setting.put(
+        SettingBoxKey.taskFavList,
+        migratedList.map((e) => '${e.$2}|${e.$1}').toList(),
+      );
+    }
+    return migratedList;
   }
 
   void _saveFolders() {
@@ -357,14 +375,18 @@ class _TaskPageState extends State<TaskPage> {
   }
 
   void _removeFolder(int index) {
+    final title = _folders[index].$1;
     setState(() {
       _folders = List.of(_folders)..removeAt(index);
+      // 删除项在选中项之前时，索引前移保持选中同一个收藏夹
+      if (_selected > index) _selected--;
       if (_selected >= _folders.length) {
         _selected = _folders.isEmpty ? 0 : _folders.length - 1;
       }
     });
     _saveFolders();
     _refreshDuration();
+    SmartDialog.showToast('已删除 $title');
   }
 
   void _resetFolders() {
@@ -688,6 +710,14 @@ class _TaskPageState extends State<TaskPage> {
                 color: _selected == i ? colorScheme.primary : outline,
               ),
               title: Text(_folders[i].$1),
+              trailing:
+                  _folderEntryVisible && _folders[i].$2 != Constants.favCId
+                  ? IconButton(
+                      tooltip: '删除收藏夹',
+                      onPressed: () => _removeFolder(i),
+                      icon: const Icon(Icons.delete_outline),
+                    )
+                  : null,
               onTap: () {
                 setState(() => _selected = i);
                 _refreshDuration();

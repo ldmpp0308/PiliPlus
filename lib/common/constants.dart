@@ -7,7 +7,7 @@ abstract final class Constants {
   // 任务页三个收藏夹
   static const int favAId = 4020281993;
   static const int favBId = 3865079277;
-  static const int favCId = 3940948099;
+  static const int favCId = 5623053466;
 
   // 27eb53fc9058f8c3  移动端 Android
   // 4409e2ce8ffd12b8  HD版
