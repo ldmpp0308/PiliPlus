@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:PiliPlus/models/common/account_type.dart';
+import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
 import 'package:PiliPlus/utils/storage.dart';
@@ -73,20 +74,41 @@ abstract final class AutoSwitchAccount {
       return;
     }
     await _mark();
-    await switchNext();
+    if (!await switchNext()) {
+      // 连续失败：暂停播放，避免继续在旧账号产生播放
+      await PlPlayerController.pauseIfExists();
+      SmartDialog.showToast('自动切号失败，已暂停播放');
+    }
   }
 
   /// 切换到下一个已登录账号
-  static Future<void> switchNext() async {
+  /// 失败时立即重试 3 次，仍失败返回 false
+  static Future<bool> switchNext() async {
     final list = candidates;
-    if (list.length < 2) return;
+    if (list.length < 2) return true;
     final currentMid = Accounts.main.mid;
     final index = list.indexWhere((e) => e.mid == currentMid);
     final next = list[(index + 1) % list.length];
-    if (next.mid == currentMid) return;
-    for (final type in AccountType.values) {
-      await Accounts.set(type, next);
+    if (next.mid == currentMid) return true;
+    // 目标账号只确定一次，重试时不会跳过账号
+    for (var attempt = 0; attempt <= 3; attempt++) {
+      if (attempt > 0) {
+        await Future.delayed(const Duration(seconds: 2));
+      }
+      try {
+        for (final type in AccountType.values) {
+          await Accounts.set(type, next);
+        }
+        // 账号 cookie 失效时会被登出，这里校验是否真的切过去了
+        if (!AccountType.values.every(
+          (type) => Accounts.get(type).mid == next.mid,
+        )) {
+          continue;
+        }
+        SmartDialog.showToast('已自动切换到 ${next.uname ?? next.mid}');
+        return true;
+      } catch (_) {}
     }
-    SmartDialog.showToast('已自动切换到 ${next.uname ?? next.mid}');
+    return false;
   }
 }
