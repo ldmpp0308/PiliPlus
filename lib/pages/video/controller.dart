@@ -811,14 +811,27 @@ class VideoDetailController extends GetxController
       onInit: () {
         videoState.value = true;
         setSubtitle(vttSubtitlesIndex.value);
+        // 连播时同页换源，路由参数里的标题不会更新，优先用当前视频数据
+        String? title;
         String? part;
-        try {
-          part = ugcIntroCtr.videoDetail.value.pages
-              ?.firstWhereOrNull((e) => e.cid == cid.value)
-              ?.part;
-        } catch (_) {}
+        if (isUgc) {
+          try {
+            final detail = ugcIntroCtr.videoDetail.value;
+            if (detail.bvid == bvid) {
+              title = detail.title;
+              part = detail.pages
+                  ?.firstWhereOrNull((e) => e.cid == cid.value)
+                  ?.part;
+            }
+            title ??= mediaList
+                .firstWhereOrNull((e) => e.bvid == bvid)
+                ?.title;
+          } catch (_) {}
+        }
         RunLog.play(
-          title: args['title'] as String?,
+          title: title?.isNotEmpty == true
+              ? title
+              : args['title'] as String?,
           part: part,
           cid: cid.value,
           bvid: bvid,
