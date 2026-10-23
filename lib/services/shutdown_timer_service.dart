@@ -9,6 +9,7 @@ import 'package:PiliPlus/utils/auto_switch_account.dart';
 import 'package:PiliPlus/utils/device_utils.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
+import 'package:PiliPlus/utils/run_log.dart';
 import 'package:PiliPlus/utils/theme_utils.dart';
 import 'package:collection/collection.dart';
 import 'package:cupertino_ui/cupertino_ui.dart' show CupertinoPicker;
@@ -109,6 +110,7 @@ class ShutdownTimerService {
           } else {
             _durationInMinutes = 0;
             (onPause ?? player?.pause)?.call();
+            RunLog.endTask('定时暂停');
             SmartDialog.showToast('定时时间已到，已暂停');
           }
         }
@@ -132,6 +134,7 @@ class ShutdownTimerService {
       case .pause:
         _isWaiting = false;
         _durationInMinutes = 0;
+        RunLog.endTask('定时暂停');
         SmartDialog.showToast('定时时间已到，已暂停');
       case .exit:
         _syncProgressAndExit();
@@ -139,6 +142,7 @@ class ShutdownTimerService {
   }
 
   void _syncProgressAndExit() {
+    RunLog.endTask('定时退出');
     if (PlPlayerController.instance case final player?) {
       final res = player.makeHeartBeat(
         player.position.value,

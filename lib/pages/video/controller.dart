@@ -60,6 +60,7 @@ import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
+import 'package:PiliPlus/utils/run_log.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/theme_utils.dart';
@@ -810,6 +811,18 @@ class VideoDetailController extends GetxController
       onInit: () {
         videoState.value = true;
         setSubtitle(vttSubtitlesIndex.value);
+        String? part;
+        try {
+          part = ugcIntroCtr.videoDetail.value.pages
+              ?.firstWhereOrNull((e) => e.cid == cid.value)
+              ?.part;
+        } catch (_) {}
+        RunLog.play(
+          title: args['title'] as String?,
+          part: part,
+          cid: cid.value,
+          bvid: bvid,
+        );
       },
       width: firstVideo.width,
       height: firstVideo.height,
@@ -1302,6 +1315,7 @@ class VideoDetailController extends GetxController
 
   @override
   void onClose() {
+    RunLog.endTask('手动退出');
     cid.close();
     if (isFileSource) {
       cacheLocalProgress();

@@ -250,6 +250,8 @@ abstract final class SettingBoxKey {
       autoSwitchAccountHours = 'autoSwitchAccountHours',
       autoSwitchAccountAt = 'autoSwitchAccountAt',
       customPlayerVolume161 = 'customPlayerVolume161',
+      runLog = 'runLog',
+      runLogTask = 'runLogTask',
       appFont = 'appFont';
 }
 

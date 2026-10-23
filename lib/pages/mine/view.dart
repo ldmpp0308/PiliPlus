@@ -23,6 +23,7 @@ import 'package:PiliPlus/utils/extension/get_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/theme_ext.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
+import 'package:PiliPlus/utils/run_log.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart' hide ListTile;
@@ -100,6 +101,7 @@ class _MediaPageState extends CommonPageState<MinePage>
                         .later => Obx(_buildLater),
                         .sub => Obx(_buildSub),
                       },
+                    _buildRunLog(secondary),
                   ],
                 ),
               ),
@@ -478,6 +480,50 @@ class _MediaPageState extends CommonPageState<MinePage>
       onPushDetail: () => Get.toNamed(
         '/subscription',
       )?.whenComplete(() => _autoRefresh(controller.subCtr!)),
+    );
+  }
+
+  Widget _buildRunLog(Color secondary) {
+    return Column(
+      children: [
+        Divider(
+          height: 20,
+          color: theme.colorScheme.outline.withValues(alpha: 0.1),
+        ),
+        ListTile(
+          dense: true,
+          onTap: () => Get.toNamed('/runLog'),
+          title: Padding(
+            padding: const EdgeInsets.only(left: 10),
+            child: Row(
+              children: [
+                const Text(
+                  '运行日志',
+                  style: TextStyle(fontSize: 16, fontWeight: .bold),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ValueListenableBuilder(
+                    valueListenable: RunLog.revision,
+                    builder: (context, _, _) => Text(
+                      RunLog.latestSummary ?? '暂无记录',
+                      maxLines: 1,
+                      overflow: .ellipsis,
+                      textAlign: .right,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(Icons.arrow_forward_ios, size: 18, color: secondary),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 

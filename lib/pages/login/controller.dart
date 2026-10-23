@@ -14,6 +14,7 @@ import 'package:PiliPlus/pages/login/geetest/geetest_webview_dialog.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
+import 'package:PiliPlus/utils/run_log.dart';
 import 'package:PiliPlus/utils/theme_utils.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -776,6 +777,10 @@ class LoginPageController extends GetxController
           TextButton(
             onPressed: () {
               Get.back();
+              final oldMain = Accounts.main;
+              final newMain = quickSelect
+                  ? selectAccount.first
+                  : selectAccount[AccountType.main.index];
               for (final type in AccountType.values) {
                 final index = type.index;
                 final account = quickSelect
@@ -784,6 +789,13 @@ class LoginPageController extends GetxController
                 if (account != Accounts.accountMode[index]) {
                   Accounts.set(type, account);
                 }
+              }
+              if (newMain.mid != oldMain.mid) {
+                RunLog.switchAccount(
+                  from: oldMain,
+                  to: newMain,
+                  success: Accounts.main.mid == newMain.mid,
+                );
               }
             },
             child: const Text('确定'),

@@ -4,6 +4,7 @@ import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/accounts/account.dart';
+import 'package:PiliPlus/utils/run_log.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
@@ -78,7 +79,8 @@ abstract final class AutoSwitchAccount {
     await _mark();
     final failed = await switchNext();
     if (failed != null) {
-      // 连续失败：暂停播放，避免继续在旧账号产生播放
+      // 连续失败：结束任务并暂停播放，避免继续在旧账号产生播放
+      RunLog.endTask('切号失败');
       await PlPlayerController.pauseIfExists();
       SmartDialog.showToast(
         '切换到 ${failed.uname?.isNotEmpty == true ? failed.uname : failed.mid} '
@@ -92,6 +94,7 @@ abstract final class AutoSwitchAccount {
   static Future<LoginAccount?> switchNext() async {
     final list = candidates;
     if (list.length < 2) return null;
+    final currentAccount = Accounts.main;
     final currentMid = Accounts.main.mid;
     final index = list.indexWhere((e) => e.mid == currentMid);
     final next = list[(index + 1) % list.length];
@@ -113,10 +116,12 @@ abstract final class AutoSwitchAccount {
         )) {
           continue;
         }
+        RunLog.switchAccount(from: currentAccount, to: next, success: true);
         SmartDialog.showToast('已自动切换到 ${next.uname ?? next.mid}');
         return null;
       } catch (_) {}
     }
+    RunLog.switchAccount(from: currentAccount, to: next, success: false);
     return next;
   }
 }

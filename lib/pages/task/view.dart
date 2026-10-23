@@ -9,6 +9,7 @@ import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/auto_switch_account.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/num_utils.dart';
+import 'package:PiliPlus/utils/run_log.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
@@ -633,6 +634,7 @@ class _TaskPageState extends State<TaskPage> {
     if (speed != null) {
       GStorage.video.put(VideoBoxKey.playSpeedDefault, speed);
     }
+    RunLog.startTask(favName: _folders[_selected].$1);
     Get.toNamed(
       '/favDetail',
       parameters: {
