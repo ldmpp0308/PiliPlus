@@ -238,7 +238,7 @@ List<SettingsModel> get playSettings => [
     subtitle: '展示同时在看人数',
     leading: Icon(Icons.people_outlined),
     setKey: SettingBoxKey.enableOnlineTotal,
-    defaultVal: false,
+    defaultVal: true,
   ),
   NormalModel(
     title: '默认全屏方向',
