@@ -21,6 +21,7 @@ import 'package:PiliPlus/models/common/sponsor_block/post_segment_model.dart';
 import 'package:PiliPlus/models/common/sponsor_block/segment_model.dart';
 import 'package:PiliPlus/models/common/sponsor_block/segment_type.dart';
 import 'package:PiliPlus/models/common/video/audio_quality.dart';
+import 'package:PiliPlus/models/common/video/cdn_type.dart';
 import 'package:PiliPlus/models/common/video/source_type.dart';
 import 'package:PiliPlus/models/common/video/video_decode_type.dart';
 import 'package:PiliPlus/models/common/video/video_quality.dart';
@@ -749,7 +750,7 @@ class VideoDetailController extends GetxController
       ..buffered.value = 0;
 
     firstVideo = findVideoByQa(currentVideoQa.code, setCodecs: true);
-    videoUrl = VideoUtils.getCdnUrl(firstVideo.playUrls);
+    _applyVideoUrl(firstVideo.playUrls);
 
     /// 根据currentAudioQa 重新设置audioUrl
     if (currentAudioQa != null) {
@@ -761,6 +762,32 @@ class VideoDetailController extends GetxController
     }
 
     playerInit();
+  }
+
+  /// 当前视频的备用播放地址，主地址卡住时依次切换
+  List<String> videoFallbackUrls = const [];
+  int _fallbackIndex = 0;
+
+  void _applyVideoUrl(Iterable<String> playUrls) {
+    videoFallbackUrls = VideoUtils.getCdnUrls(playUrls);
+    _fallbackIndex = 0;
+    videoUrl = videoFallbackUrls.first;
+  }
+
+  /// 播放器卡死/断流兜底：先换备用 CDN，仍不行再重新拉流
+  void _onStallRecover() {
+    if (isClosed) return;
+    playedTime = Duration(
+      milliseconds: plPlayerController.positionInMilliseconds,
+    );
+    if (_fallbackIndex + 1 < videoFallbackUrls.length) {
+      _fallbackIndex++;
+      videoUrl = videoFallbackUrls[_fallbackIndex];
+      playerInit();
+    } else {
+      _fallbackIndex = 0;
+      queryVideoUrl(fromReset: true);
+    }
   }
 
   Future<void>? initPlayerIfNeeded(bool autoFullScreenFlag) {
@@ -780,6 +807,7 @@ class VideoDetailController extends GetxController
     bool? autoplay,
     bool autoFullScreenFlag = false,
   }) async {
+    plPlayerController.onStallRecover = _onStallRecover;
     Duration? seek = defaultST ?? playedTime;
     if (seek == .zero) seek = null;
     seek ??= getFirstSegment();
@@ -906,6 +934,7 @@ class VideoDetailController extends GetxController
   Future<void> queryVideoUrl({
     bool fromReset = false,
     bool autoFullScreenFlag = false,
+    int retry = 0,
   }) async {
     if (isFileSource) {
       return initPlayerIfNeeded(autoFullScreenFlag);
@@ -914,15 +943,44 @@ class VideoDetailController extends GetxController
       return;
     }
     isQuerying = true;
+    bool success = false;
     try {
-      await _queryVideoUrl(fromReset, autoFullScreenFlag);
+      success = await _queryVideoUrl(
+        fromReset,
+        autoFullScreenFlag,
+        showError: retry >= 2,
+      );
     } finally {
       isQuerying = false;
+    }
+    // 拉流失败：切换 CDN 后自动重试，避免播放直接中断
+    if (!success && !isClosed && retry < 2) {
+      _autoPlay.value = true;
+      final origin = VideoUtils.cdnService;
+      VideoUtils.cdnService = retry == 0
+          ? CDNService.baseUrl
+          : CDNService.backupUrl;
+      try {
+        await Future<void>.delayed(Duration(milliseconds: 1200 + retry * 800));
+        if (!isClosed) {
+          await queryVideoUrl(
+            fromReset: fromReset,
+            autoFullScreenFlag: autoFullScreenFlag,
+            retry: retry + 1,
+          );
+        }
+      } finally {
+        VideoUtils.cdnService = origin;
+      }
     }
   }
 
   @pragma('vm:prefer-inline')
-  Future<void> _queryVideoUrl(bool fromReset, bool autoFullScreenFlag) async {
+  Future<bool> _queryVideoUrl(
+    bool fromReset,
+    bool autoFullScreenFlag, {
+    bool showError = true,
+  }) async {
     if (plPlayerController.enableSponsorBlock && isBlock && !fromReset) {
       querySponsorBlock(bvid: bvid, cid: cid.value);
     }
@@ -973,6 +1031,9 @@ class VideoDetailController extends GetxController
       }
       if (data.dash == null) {
         if (data.durl case final durl?) {
+          // 多段 durl 走 edl，不使用备用地址
+          videoFallbackUrls = const [];
+          _fallbackIndex = 0;
           // it will cause all files to be opened simultaneously
           if (durl.length > 1) {
             // TODO: refa
@@ -1000,7 +1061,7 @@ class VideoDetailController extends GetxController
           currentDecodeFormats = VideoDecodeFormatType.AVC;
           currentVideoQa.value = videoQuality;
           await initPlayerIfNeeded(autoFullScreenFlag);
-          return;
+          return true;
         } else {
           SmartDialog.showToast('视频资源不存在');
           _autoPlay.value = false;
@@ -1008,7 +1069,7 @@ class VideoDetailController extends GetxController
           if (plPlayerController.isFullScreen.value) {
             plPlayerController.triggerFullScreen(status: false);
           }
-          return;
+          return true;
         }
       }
 
@@ -1043,7 +1104,7 @@ class VideoDetailController extends GetxController
       );
       _setVideoHeight();
 
-      videoUrl = VideoUtils.getCdnUrl(firstVideo.playUrls);
+      _applyVideoUrl(firstVideo.playUrls);
 
       /// 优先顺序 设置中指定质量 -> 当前可选的最高质量
       AudioItem? firstAudio;
@@ -1068,13 +1129,18 @@ class VideoDetailController extends GetxController
         audioUrl = '';
       }
       await initPlayerIfNeeded(autoFullScreenFlag);
+      return true;
     } else {
-      _autoPlay.value = false;
-      videoState.value = false;
-      if (plPlayerController.isFullScreen.value) {
-        plPlayerController.triggerFullScreen(status: false);
+      // 中间重试不打扰界面，最终失败才提示并退出全屏
+      if (showError) {
+        _autoPlay.value = false;
+        videoState.value = false;
+        if (plPlayerController.isFullScreen.value) {
+          plPlayerController.triggerFullScreen(status: false);
+        }
+        result.toast();
       }
-      result.toast();
+      return false;
     }
   }
 

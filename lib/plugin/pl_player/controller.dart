@@ -52,7 +52,6 @@ import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:archive/archive.dart' show getCrc32;
 import 'package:canvas_danmaku/canvas_danmaku.dart';
-import 'package:easy_debounce/easy_throttle.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/services.dart'
     show DeviceOrientation, HapticFeedback, KeyDownEvent;
@@ -158,6 +157,21 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
 
   Timer? _timer;
   StreamSubscription? _subForSeek;
+
+  /// 播放卡死/断流兜底回调，由视频页注入（重新拉流或切换备用 CDN）
+  VoidCallback? onStallRecover;
+
+  /// 卡死看门狗
+  Timer? _stallTimer;
+  int _stallTicks = 0;
+  int _stallRecoverCount = 0;
+  int _lastStallPosition = -1;
+
+  /// 播放错误退避重连
+  int _errorRetryCount = 0;
+  int _errorPosition = -1;
+  int _lastRecoverTs = 0;
+  Timer? _errorRetryTimer;
 
   Box setting = GStorage.setting;
 
@@ -968,6 +982,88 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     return null;
   }
 
+  /// 播放中进度长时间不前进时自动重连；连续重连无效则交给上层换源
+  void _startStallWatchdog() {
+    _stallTimer?.cancel();
+    _lastStallPosition = -1;
+    _stallTicks = 0;
+    _stallRecoverCount = 0;
+    _stallTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (_playerCount == 0 || isLive || isFileSource || processing) return;
+      // 仅在播放中检测，暂停/拖动/播放完成均不算卡死
+      if (!playerStatus.isPlaying || isSeeking.value) return;
+      if (playerStatus.isCompleted) return;
+      final pos = positionInMilliseconds;
+      if (pos != _lastStallPosition) {
+        _lastStallPosition = pos;
+        _stallTicks = 0;
+        _stallRecoverCount = 0;
+        _errorRetryCount = 0;
+        return;
+      }
+      // 约 15s 进度未前进才判定为卡死
+      if (++_stallTicks < 3) return;
+      _stallTicks = 0;
+      if (_stallRecoverCount >= 2) {
+        _stallRecoverCount = 0;
+        final recover = onStallRecover;
+        if (recover != null) {
+          SmartDialog.showToast(
+            '播放卡住，正在重新获取播放地址',
+            displayTime: const Duration(seconds: 1),
+          );
+          recover();
+        } else {
+          refreshPlayer();
+        }
+      } else {
+        _stallRecoverCount++;
+        SmartDialog.showToast(
+          '播放卡住，正在重连',
+          displayTime: const Duration(milliseconds: 800),
+        );
+        refreshPlayer();
+      }
+    });
+  }
+
+  /// 播放错误后的退避重连：3s/6s/12s，最多 3 次，仍失败则交给上层换源
+  void _scheduleReconnect() {
+    if (isFileSource) return;
+    if (_errorRetryTimer != null) return;
+    if (_errorRetryCount >= 3) {
+      _errorRetryCount = 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      // 30s 内不重复触发上层换源，避免错误风暴
+      if (now - _lastRecoverTs < 30000) return;
+      _lastRecoverTs = now;
+      final recover = onStallRecover;
+      if (recover != null) {
+        recover();
+      } else {
+        refreshPlayer();
+      }
+      return;
+    }
+    final delay = Duration(seconds: 3 << _errorRetryCount);
+    _errorRetryCount++;
+    _errorPosition = positionInMilliseconds;
+    _errorRetryTimer = Timer(delay, () {
+      _errorRetryTimer = null;
+      if (_playerCount == 0) return;
+      // 进度已恢复则不打扰
+      if (positionInMilliseconds > _errorPosition) {
+        _errorRetryCount = 0;
+        return;
+      }
+      SmartDialog.showToast(
+        '播放中断，正在重连',
+        displayTime: const Duration(milliseconds: 800),
+      );
+      refreshPlayer();
+    });
+  }
+
   // 开始播放
   Future<void> _initializePlayer() async {
     if (_instance == null) return;
@@ -979,6 +1075,8 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
       }
     }
     _initVideoFit();
+
+    _startStallWatchdog();
 
     // 自动播放
     if (_autoPlay) {
@@ -1134,27 +1232,10 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
             //tcp: ffurl_read returned 0xdfb9b0bb
             //tcp: ffurl_read returned 0xffffff99
             event.startsWith('tcp: ffurl_read returned ')) {
-          EasyThrottle.throttle(
-            'controllerStream.error.listen',
-            const Duration(milliseconds: 10000),
-            () {
-              Timer(const Duration(milliseconds: 3000), () {
-                // if (kDebugMode) {
-                //   debugPrint("isBuffering.value: ${isBuffering.value}");
-                // }
-                // if (kDebugMode) {
-                //   debugPrint("_buffered.value: ${_buffered.value}");
-                // }
-                if (isBuffering.value && buffered.value == 0) {
-                  SmartDialog.showToast(
-                    '视频链接打开失败，重试中',
-                    displayTime: const Duration(milliseconds: 500),
-                  );
-                  refreshPlayer();
-                }
-              });
-            },
-          );
+          // 中断只在「播放中」自动重连，用户主动暂停时保持不动
+          if (playerStatus.isPlaying || isBuffering.value) {
+            _scheduleReconnect();
+          }
         } else if (event.startsWith('Could not open codec')) {
           SmartDialog.showToast('无法加载解码器, $event，可能会切换至软解');
         } else if (!onlyPlayAudio.value) {
@@ -1711,6 +1792,10 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
       IOSPipHelper.dispose();
     }
     _timer?.cancel();
+    _stallTimer?.cancel();
+    _stallTimer = null;
+    _errorRetryTimer?.cancel();
+    _errorRetryTimer = null;
     // _position.close();
     // _playerEventSubs?.cancel();
     // _sliderPosition.close();

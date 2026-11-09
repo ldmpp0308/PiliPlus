@@ -90,6 +90,22 @@ abstract final class VideoUtils {
               .toString();
   }
 
+  /// 返回首选播放地址 + 备用地址列表，用于播放中断时换源重试
+  static List<String> getCdnUrls(
+    Iterable<String> urls, {
+    bool isAudio = false,
+  }) {
+    final primary = getCdnUrl(urls, isAudio: isAudio);
+    final result = <String>[primary];
+    for (final url in urls) {
+      if (result.length >= 3) break;
+      if (url == primary) continue;
+      if (!_mirrorRegex.hasMatch(url) && !url.contains('/upgcxcode/')) continue;
+      if (!result.contains(url)) result.add(url);
+    }
+    return result;
+  }
+
   static String getLiveCdnUrl(CodecItem e, {int index = 0}) {
     final urlInfo = e.urlInfo.getOrFirst(index);
     return (liveCdnUrl ?? urlInfo.host) + e.baseUrl + urlInfo.extra;
