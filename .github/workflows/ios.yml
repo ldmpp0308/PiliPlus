@@ -17,6 +17,8 @@ jobs:
   build-macos-app:
     name: Release IOS
     runs-on: macos-26
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -44,6 +46,17 @@ jobs:
           # make AltSign happy...
           find Payload/Runner.app/Frameworks -type d -name "*.framework" -exec codesign --force --sign - --preserve-metadata=identifier,entitlements {} \;
           zip -r9 PiliPlus_ios_${{env.version}}.ipa Payload/Runner.app
+
+      - name: Publish rolling release
+        run: cp PiliPlus_ios_*.ipa PiliPlus_latest.ipa
+
+      - name: Upload rolling release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: latest
+          name: latest
+          prerelease: true
+          files: PiliPlus_latest.ipa
 
       - name: Release
         if: ${{ github.event.inputs.tag != '' }}
