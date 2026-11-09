@@ -9,6 +9,9 @@ on:
         default: ""
         type: string
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build-macos-app:
