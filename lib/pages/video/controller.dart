@@ -790,6 +790,29 @@ class VideoDetailController extends GetxController
     }
   }
 
+  String _diagKey = '';
+  int _diagTs = 0;
+
+  /// 播放异常诊断：写入运行日志，供事后定位中断根因
+  void _onPlaybackDiag(String event, String detail) {
+    if (isClosed) return;
+    // 同类异常 20s 内只记一条，避免断流重连时刷屏
+    final raw = detail.contains('|') ? detail.split('|').last.trim() : detail;
+    final key = '$event|${raw.length > 48 ? raw.substring(0, 48) : raw}';
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (key == _diagKey && now - _diagTs < 20000) return;
+    _diagKey = key;
+    _diagTs = now;
+    String? title;
+    if (isUgc) {
+      try {
+        final detailData = ugcIntroCtr.videoDetail.value;
+        if (detailData.bvid == bvid) title = detailData.title;
+      } catch (_) {}
+    }
+    RunLog.issue('【$event】$detail', title: title ?? args['title'] as String?);
+  }
+
   Future<void>? initPlayerIfNeeded(bool autoFullScreenFlag) {
     if (_autoPlay.value ||
         (plPlayerController.preInitPlayer && !plPlayerController.processing) &&
@@ -808,6 +831,7 @@ class VideoDetailController extends GetxController
     bool autoFullScreenFlag = false,
   }) async {
     plPlayerController.onStallRecover = _onStallRecover;
+    plPlayerController.onPlaybackDiag = _onPlaybackDiag;
     Duration? seek = defaultST ?? playedTime;
     if (seek == .zero) seek = null;
     seek ??= getFirstSegment();

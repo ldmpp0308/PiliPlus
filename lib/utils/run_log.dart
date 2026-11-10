@@ -7,7 +7,7 @@ import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:flutter/foundation.dart';
 
-enum RunLogType { play, switchAccount, taskStart, taskEnd }
+enum RunLogType { play, switchAccount, taskStart, taskEnd, issue }
 
 class RunLogEntry {
   const RunLogEntry({
@@ -71,6 +71,7 @@ class RunLogEntry {
     RunLogType.switchAccount => '切号',
     RunLogType.taskStart => '任务开始',
     RunLogType.taskEnd => '任务结束',
+    RunLogType.issue => '异常',
   };
 
   /// 一行摘要（用于列表与复制）
@@ -88,6 +89,8 @@ class RunLogEntry {
     RunLogType.taskEnd =>
       '播放 ${playCount ?? 0} 个视频 · 切号 ${switchCount ?? 0} 次'
           '${reason?.isNotEmpty == true ? ' · ${reason!}' : ''}',
+    RunLogType.issue =>
+      '${title?.isNotEmpty == true ? '《$title》 ' : ''}${reason ?? '播放异常'}',
   };
 
   String get line => '${timeText.padRight(6)}${label.padRight(6)}$display';
@@ -328,6 +331,32 @@ abstract final class RunLog {
       ),
     );
     _bump('switch');
+  }
+
+  /// 播放异常（卡死 / 断流 / 重连 / 恢复），用于定位中断根因
+  static void issue(String message, {String? title}) {
+    _ensureLoaded();
+    final now = DateTime.now();
+    // 30s 内重复的同类异常只记一条，避免刷屏
+    if (_entries.isNotEmpty) {
+      final last = _entries.first;
+      if (last.type == RunLogType.issue &&
+          last.reason == message &&
+          now.difference(last.time) < const Duration(seconds: 30)) {
+        return;
+      }
+    }
+    final account = Accounts.main;
+    _add(
+      RunLogEntry(
+        time: now,
+        type: RunLogType.issue,
+        account: RunLogEntry.accountLabel(account),
+        mid: account.mid,
+        title: title,
+        reason: message,
+      ),
+    );
   }
 
   /// 任务开始

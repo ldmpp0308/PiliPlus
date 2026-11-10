@@ -3,7 +3,7 @@ import 'package:PiliPlus/utils/utils.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:material_ui/material_ui.dart';
 
-enum _RunLogFilter { all, play, switchAccount, task }
+enum _RunLogFilter { all, play, switchAccount, task, issue }
 
 class RunLogPage extends StatefulWidget {
   const RunLogPage({super.key});
@@ -20,6 +20,7 @@ class _RunLogPageState extends State<RunLogPage> {
     _RunLogFilter.play: '播放',
     _RunLogFilter.switchAccount: '切号',
     _RunLogFilter.task: '任务',
+    _RunLogFilter.issue: '异常',
   };
 
   bool _match(RunLogEntry entry) => switch (_filter) {
@@ -28,6 +29,7 @@ class _RunLogPageState extends State<RunLogPage> {
     _RunLogFilter.switchAccount => entry.type == RunLogType.switchAccount,
     _RunLogFilter.task =>
       entry.type == RunLogType.taskStart || entry.type == RunLogType.taskEnd,
+    _RunLogFilter.issue => entry.type == RunLogType.issue,
   };
 
   static String _dayLabel(DateTime time) {
@@ -189,6 +191,7 @@ class _LogTile extends StatelessWidget {
       ),
       RunLogType.taskStart => (colorScheme.secondary, Icons.flag_outlined),
       RunLogType.taskEnd => (colorScheme.outline, Icons.stop_circle_outlined),
+      RunLogType.issue => (colorScheme.error, Icons.warning_amber_rounded),
     };
     return InkWell(
       onLongPress: () => Utils.copyText(entry.line),

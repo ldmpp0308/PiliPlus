@@ -55,6 +55,7 @@ import 'package:canvas_danmaku/canvas_danmaku.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/services.dart'
     show DeviceOrientation, HapticFeedback, KeyDownEvent;
+import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 import 'package:get/get.dart';
@@ -160,6 +161,14 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
 
   /// 播放卡死/断流兜底回调，由视频页注入（重新拉流或切换备用 CDN）
   VoidCallback? onStallRecover;
+
+  /// 播放异常诊断回调，由视频页注入并写入运行日志
+  void Function(String event, String detail)? onPlaybackDiag;
+
+  /// 用户主动暂停（区别于断流导致的暂停）
+  bool _userPaused = false;
+  int _playStartTs = 0;
+  int _stallSinceTs = 0;
 
   /// 卡死看门狗
   Timer? _stallTimer;
@@ -982,46 +991,99 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     return null;
   }
 
+  /// 播放异常诊断上报（由视频页写入运行日志）
+  void _diag(String event, String extra) {
+    final cb = onPlaybackDiag;
+    if (cb == null) return;
+    final played = _playStartTs == 0
+        ? 0
+        : (DateTime.now().millisecondsSinceEpoch - _playStartTs) ~/ 1000;
+    final app = WidgetsBinding.instance.lifecycleState?.name ?? 'unknown';
+    cb(
+      event,
+      '播放${played}s 进度${positionInMilliseconds ~/ 1000}s '
+          'playing=${playerStatus.isPlaying} '
+          'buffering=${isBuffering.value} app=$app'
+          '${extra.isEmpty ? '' : ' | $extra'}',
+    );
+  }
+
+  /// 网络类错误判定，断流通常以这些前缀/文本出现
+  static bool _isNetworkError(String event) {
+    return event.startsWith('tcp:') ||
+        event.startsWith('http:') ||
+        event.startsWith('tls:') ||
+        event.startsWith('Failed to open https://') ||
+        event.startsWith('Can not open external file https://') ||
+        event.contains('Stream ends prematurely') ||
+        event.contains('Connection reset') ||
+        event.contains('Connection refused') ||
+        event.contains('timed out') ||
+        event.contains('Timeout') ||
+        event.contains('Could not resolve host') ||
+        event.contains('Network is unreachable');
+  }
+
   /// 播放中进度长时间不前进时自动重连；连续重连无效则交给上层换源
   void _startStallWatchdog() {
     _stallTimer?.cancel();
     _lastStallPosition = -1;
     _stallTicks = 0;
     _stallRecoverCount = 0;
+    _stallSinceTs = 0;
     _stallTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (_playerCount == 0 || isLive || isFileSource || processing) return;
-      // 仅在播放中检测，暂停/拖动/播放完成均不算卡死
-      if (!playerStatus.isPlaying || isSeeking.value) return;
+      // 只排除用户主动暂停/拖动/播放完成；断流导致的停止同样要兜底
+      if (_userPaused || isSeeking.value) return;
       if (playerStatus.isCompleted) return;
       final pos = positionInMilliseconds;
       if (pos != _lastStallPosition) {
+        if (_stallSinceTs != 0) {
+          _diag(
+            '恢复',
+            '停滞 ${(DateTime.now().millisecondsSinceEpoch - _stallSinceTs) ~/ 1000}s',
+          );
+          _stallSinceTs = 0;
+        }
         _lastStallPosition = pos;
         _stallTicks = 0;
         _stallRecoverCount = 0;
         _errorRetryCount = 0;
         return;
       }
-      // 约 15s 进度未前进才判定为卡死
-      if (++_stallTicks < 3) return;
+      // 起播阶段（进度为 0）容忍 40s，播放中停 20s 即判定卡死
+      if (_stallSinceTs == 0) {
+        _stallSinceTs = DateTime.now().millisecondsSinceEpoch;
+      }
+      final threshold = pos <= 0 ? 8 : 4;
+      if (++_stallTicks < threshold) return;
       _stallTicks = 0;
+      _diag('卡死', '${threshold * 5}s 无进展');
+      final resumed =
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
       if (_stallRecoverCount >= 2) {
         _stallRecoverCount = 0;
-        final recover = onStallRecover;
-        if (recover != null) {
+        _diag('换源', '连续重连无效');
+        if (resumed) {
           SmartDialog.showToast(
             '播放卡住，正在重新获取播放地址',
             displayTime: const Duration(seconds: 1),
           );
+        }
+        final recover = onStallRecover;
+        if (recover != null) {
           recover();
         } else {
           refreshPlayer();
         }
       } else {
         _stallRecoverCount++;
-        SmartDialog.showToast(
-          '播放卡住，正在重连',
-          displayTime: const Duration(milliseconds: 800),
-        );
+        if (resumed) {
+          SmartDialog.showToast(
+            '播放卡住，正在重连',
+            displayTime: const Duration(milliseconds: 800),
+          );
+        }
         refreshPlayer();
       }
     });
@@ -1037,6 +1099,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
       // 30s 内不重复触发上层换源，避免错误风暴
       if (now - _lastRecoverTs < 30000) return;
       _lastRecoverTs = now;
+      _diag('重新拉流', '连续 3 次重连失败');
       final recover = onStallRecover;
       if (recover != null) {
         recover();
@@ -1048,18 +1111,22 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     final delay = Duration(seconds: 3 << _errorRetryCount);
     _errorRetryCount++;
     _errorPosition = positionInMilliseconds;
+    _diag('重连', '第 $_errorRetryCount 次, ${delay.inSeconds}s 后');
     _errorRetryTimer = Timer(delay, () {
       _errorRetryTimer = null;
       if (_playerCount == 0) return;
       // 进度已恢复则不打扰
       if (positionInMilliseconds > _errorPosition) {
         _errorRetryCount = 0;
+        _diag('恢复', '重连前已自行恢复');
         return;
       }
-      SmartDialog.showToast(
-        '播放中断，正在重连',
-        displayTime: const Duration(milliseconds: 800),
-      );
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        SmartDialog.showToast(
+          '播放中断，正在重连',
+          displayTime: const Duration(milliseconds: 800),
+        );
+      }
       refreshPlayer();
     });
   }
@@ -1076,6 +1143,9 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     }
     _initVideoFit();
 
+    // 新片源：重置播放时长与暂停标记，避免沿用上一条视频的状态
+    _playStartTs = 0;
+    _userPaused = false;
     _startStallWatchdog();
 
     // 自动播放
@@ -1227,13 +1297,13 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
           }
           return;
         }
-        if (event.startsWith("Failed to open https://") ||
-            event.startsWith("Can not open external file https://") ||
-            //tcp: ffurl_read returned 0xdfb9b0bb
-            //tcp: ffurl_read returned 0xffffff99
-            event.startsWith('tcp: ffurl_read returned ')) {
+        // 记录 mpv 错误原文，便于事后定位中断根因（30s 内同类只记一条）
+        _diag('错误', event);
+        if (_isNetworkError(event)) {
           // 中断只在「播放中」自动重连，用户主动暂停时保持不动
-          if (playerStatus.isPlaying || isBuffering.value) {
+          if (playerStatus.isPlaying ||
+              isBuffering.value ||
+              playerStatus.isCompleted) {
             _scheduleReconnect();
           }
         } else if (event.startsWith('Could not open codec')) {
@@ -1340,6 +1410,11 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
     audioSessionHandler?.setActive(true);
 
     playerStatus = .playing;
+    _userPaused = false;
+    _stallSinceTs = 0;
+    if (_playStartTs == 0) {
+      _playStartTs = DateTime.now().millisecondsSinceEpoch;
+    }
   }
 
   /// 暂停播放
@@ -1349,6 +1424,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
 
     // 主动暂停时让出音频焦点
     if (!isInterrupt) {
+      _userPaused = true;
       audioSessionHandler?.setActive(false);
     }
   }
